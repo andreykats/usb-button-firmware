@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Arduino / embedded build artifacts
+build/
+**/build/
+.pio/
+.pioenvs/
+.piolibdeps/
+*.elf
+*.hex
+*.bin
+*.map
+
+# Python cache/artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Local tool output
+.playwright-cli/
+
+# Logs
+*.log
