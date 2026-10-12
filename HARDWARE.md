@@ -59,8 +59,8 @@ The GPIO can't drive a 5 V LED directly, so a transistor switches the LED's grou
 (a low-side switch). GPIO HIGH turns the LED on.
 
 ```
-P1-1 (5V) ── R_led ── LED (anode → cathode) ── C
-                                                 NPN
+P1-1 (5V) ── 47 Ω ── LED (anode → cathode) ── C
+                                                NPN 2N2222
 P1-9 (GPIO2) ── 1 kΩ ──┬────────────────────── B
                        │
                      10 kΩ
@@ -70,15 +70,36 @@ P1-2 (GND) ────────────┴──────────
 
 ### Parts
 
-| Part | Recommendation | Why |
+| Part | Chosen part | Notes |
 |---|---|---|
-| Transistor | **2N3904** or **BC337** (TO-92 NPN). 2N2222A also works. | Cheap, common, fully on with 3.3 V drive through 1 kΩ. BC337 handles up to 800 mA if you later drive more LEDs. |
-| Base resistor | **1 kΩ** | About 2.6 mA base current. Plenty for a 15 mA LED. |
+| Transistor | **2N2222** NPN, TO-92 (60 V, 0.8 A, 0.5 W) | Far more headroom than one LED needs. 2N3904 or BC337 are drop-in alternatives. |
+| LED | **White 5 mm water-clear**, Vf 3.0–3.4 V, 60 000 mcd, 30°, 320 mW max | See current notes below. |
+| LED resistor | **47 Ω**, ¼ W (≈ 30 mA) | **Required.** Use 68 Ω (≈ 20 mA) if 47 Ω is brighter than needed. |
+| Base resistor | **1 kΩ** | About 2.6 mA base current. Saturates the transistor up to about 30 mA. |
 | Base pull-down | **10 kΩ**, base to GND | Keeps the LED off while GPIO2 floats during boot and flashing. |
-| LED | 5 mm through-hole, any colour | |
-| LED resistor | Red / yellow / orange: **180 Ω**. Green / blue / white: **120 Ω**. | Sized for about 4.7 V supply and about 13–15 mA. ¼ W is fine. |
 
-Other LED currents: `R_led = (4.7 V − LED forward voltage) / current`.
+**Why the LED resistor is required.** The 5 V pin gives about 4.7 V, but the LED only drops 3.0–3.4 V.
+Without a resistor, nothing sets the current except the transistor's gain and the USB supply. The LED would
+pull hundreds of mA, burn out, and heat the transistor. It could also sag the 5 V rail that also feeds the
+matrix.
+
+**LED current.** The listing's 120 mA can't be continuous: at 3.4 V that is 408 mW, more than the
+LED's own 320 mW rating. A 5 mm epoxy LED is happiest at 20–30 mA. 30 mA (about 100 mW) is already
+very bright at 60 000 mcd. Don't go above about 60 mA (27 Ω resistor, 470 Ω base resistor).
+
+**Brightness varies between units.** There is only about 1.3 V of headroom between the supply and the
+LED. With 47 Ω, the current lands anywhere from about 20 to 38 mA, depending on the LED's exact Vf and the
+USB supply. That's normal for white LEDs on 5 V.
+
+**Transistor pinout.** Generic "2N2222" TO-92 parts come in two pinouts:
+- PN2222A: E-B-C.
+- P2N2222A: C-B-E.
+
+Both are read with the flat face toward you and the legs down. Check your parts with the seller's
+datasheet or a multimeter's diode test before soldering. Base-to-emitter and base-to-collector both read
+about 0.6–0.7 V.
+
+Other LEDs: `R_led = (4.7 V − LED Vf − 0.1 V) / current`.
 
 ### MOSFET alternative
 
@@ -107,7 +128,7 @@ The board runs from USB 5 V. Onboard, a Schottky diode feeds the 5 V rail and an
 |---|---|
 | ESP32-S3 with radio on | 100–200 mA |
 | Matrix showing one character (brightness 40) | under 100 mA |
-| Status LED | about 15 mA |
+| Status LED | 20–38 mA while lit (less on average, because it pulses) |
 
 The total stays well within a 500 mA USB port or charger. Keep `MATRIX_BRIGHTNESS` low:
 Waveshare warns that high brightness overheats the board.
