@@ -1,57 +1,62 @@
 # Hardware — pin layout and parts
 
-Wiring guide for building an ESP32-S3 Matrix Button: a Waveshare ESP32-S3-Matrix plus an
+Wiring guide for building a USB Button: a Waveshare ESP32-S3-Zero plus an
 external trigger button and a transistor-driven status LED.
 
 ## Pins used
 
-| Function | GPIO | Header pin (P1) | Notes |
+| Function | GPIO | Header pad | Notes |
 |---|---|---|---|
-| Trigger button | **GPIO1** | 10 | Button to GND, internal pull-up (`TRIGGER_BTN_PIN`) |
-| Status LED drive | **GPIO2** | 9 | PWM to the transistor base/gate (`STATUS_LED_PIN`) |
-| 5 V (LED supply) | — | 1 | USB 5 V after the onboard Schottky diode, ≈ 4.7 V |
-| GND | — | 2 | Button and transistor emitter/source |
+| Trigger button | **GPIO1** | left side, "1" | Button to GND, internal pull-up (`TRIGGER_BTN_PIN`) |
+| Status LED drive | **GPIO2** | left side, "2" | PWM to the transistor base/gate (`STATUS_LED_PIN`) |
+| 5 V (LED supply) | — | left side, "5V" | USB VBUS directly — no diode, ≈ 5.0 V |
+| GND | — | left side, "GND" | Button and transistor emitter/source |
 | Key select | GPIO0 | — | Onboard **BOOT** button, nothing to wire |
-| RGB matrix | GPIO14 | — | Onboard 8×8 WS2812B |
-| IMU (QMI8658) | 11 / 12 / 10 / 13 | — | Onboard SDA / SCL / INT1 / INT2 (unused) |
+| RGB status LED | GPIO21 | — | Onboard WS2812B, RGB colour order (`STATUS_RGB_PIN`) |
 
-GPIO1 and GPIO2 sit next to each other on the header, near 5 V and GND.
+5V, GND, 3V3, GPIO1 and GPIO2 are the top five pads of the left header, so all the
+wiring lands in one corner.
 
-## Header P1 (from the schematic)
+## Header layout (from the schematic and Waveshare pinout)
 
-| P1 | Signal | | P1 | Signal |
-|---|---|---|---|---|
-| 1 | 5V | | 11 | RX (U0RXD) |
-| 2 | GND | | 12 | TX (U0TXD, via 499 Ω) |
-| 3 | 3V3 | | 13 | IO40 |
-| 4 | IO7 | | 14 | IO39 |
-| 5 | IO6 | | 15 | IO38 |
-| 6 | IO5 | | 16 | IO37 |
-| 7 | IO4 | | 17 | IO36 |
-| 8 | IO3 | | 18 | IO35 |
-| 9 | **IO2 — status LED** | | 19 | IO34 |
-| 10 | **IO1 — trigger** | | 20 | IO33 |
+Top view, USB-C at the top:
 
-These P1 numbers come from the schematic's netlist ([resources/ESP32-S3-Matrix-Sch.pdf](resources/ESP32-S3-Matrix-Sch.pdf)).
+| Left side | | Right side |
+|---|---|---|
+| 5V | | TX (GPIO43, via 499 Ω) |
+| GND | | RX (GPIO44) |
+| 3V3 (out) | | 13 |
+| **1 — trigger** | | 12 |
+| **2 — status LED** | | 11 |
+| 3 | | 10 |
+| 4 | | 9 |
+| 5 | | 8 |
+| 6 | | 7 |
+
+Further pads: 14, 15, 16 at the lower right edge; 17, 18, 38, 39, 40, 41, 42, 45 on the
+underside. See [resources/ESP32-S3-Zero-Pinout.png](resources/ESP32-S3-Zero-Pinout.png) and
+[resources/ESP32-S3-Zero-Sch.pdf](resources/ESP32-S3-Zero-Sch.pdf).
 **Check them against the silkscreen labels on the board before soldering.**
 
 To use other pins, change `TRIGGER_BTN_PIN` / `STATUS_LED_PIN` at the top of the sketch. Avoid:
-- **IO3**: a strapping pin, which affects boot.
-- **RX/TX**: UART0, which carries boot messages.
+- **GPIO3 and GPIO45**: strapping pins, which affect boot.
+- **TX/RX**: UART0, which carries boot messages.
+- **GPIO21**: the onboard RGB LED.
 - Any pin listed in *Pins used* above.
 
-IO4–IO7 and IO33–IO40 are free. The board's quad PSRAM doesn't use IO33–IO37.
+GPIO4–GPIO18 and GPIO38–GPIO42 are free. GPIO33–37 (octal PSRAM) and GPIO19/20 (USB) are
+not broken out.
 
 ## Trigger button
 
 ```
-P1-10 (GPIO1) ──── button ──── P1-2 (GND)
+"1" (GPIO1) ──── button ──── GND
 ```
 
 - **Part:** any normally-open momentary switch, e.g. a 6 / 12 mm tactile switch, a
   panel-mount pushbutton, or a 24 / 30 mm arcade button.
 - **Resistors:** none needed. The firmware enables the internal pull-up and debounces for 50 ms.
-- **Long leads (over about 30 cm):** add a 10 kΩ pull-up from GPIO1 to 3V3 (P1-3) for better noise immunity.
+- **Long leads (over about 30 cm):** add a 10 kΩ pull-up from GPIO1 to 3V3 for better noise immunity.
 
 ## Status LED
 
@@ -59,13 +64,13 @@ The GPIO can't drive a 5 V LED directly, so a transistor switches the LED's grou
 (a low-side switch). GPIO HIGH turns the LED on.
 
 ```
-P1-1 (5V) ── 47 Ω ── LED (anode → cathode) ── C
-                                                NPN 2N2222
-P1-9 (GPIO2) ── 1 kΩ ──┬────────────────────── B
-                       │
-                     10 kΩ
-                       │
-P1-2 (GND) ────────────┴────────────────────── E
+5V ── 68 Ω ── LED (anode → cathode) ── C
+                                        NPN 2N2222
+"2" (GPIO2) ── 1 kΩ ──┬─────────────── B
+                      │
+                    10 kΩ
+                      │
+GND ──────────────────┴─────────────── E
 ```
 
 ### Parts
@@ -74,22 +79,22 @@ P1-2 (GND) ────────────┴──────────
 |---|---|---|
 | Transistor | **2N2222** NPN, TO-92 (60 V, 0.8 A, 0.5 W) | Far more headroom than one LED needs. 2N3904 or BC337 are drop-in alternatives. |
 | LED | **White 5 mm water-clear**, Vf 3.0–3.4 V, 60 000 mcd, 30°, 320 mW max | See current notes below. |
-| LED resistor | **47 Ω**, ¼ W (≈ 30 mA) | **Required.** Use 68 Ω (≈ 20 mA) if 47 Ω is brighter than needed. |
+| LED resistor | **68 Ω**, ¼ W (≈ 25 mA) | **Required.** The Matrix build used 47 Ω; see below. |
 | Base resistor | **1 kΩ** | About 2.6 mA base current. Saturates the transistor up to about 30 mA. |
 | Base pull-down | **10 kΩ**, base to GND | Keeps the LED off while GPIO2 floats during boot and flashing. |
 
-**Why the LED resistor is required.** The 5 V pin gives about 4.7 V, but the LED only drops 3.0–3.4 V.
-Without a resistor, nothing sets the current except the transistor's gain and the USB supply. The LED would
-pull hundreds of mA, burn out, and heat the transistor. It could also sag the 5 V rail that also feeds the
-matrix.
+**Why 68 Ω, not 47 Ω.** On the ESP32-S3-Matrix the 5 V pin sits behind a Schottky diode
+(≈ 4.7 V). On the Zero, the 5V pad is USB VBUS directly: ≈ 5.0 V, and up to 5.25 V on some
+ports. With 47 Ω that gives about 32–45 mA, past the 20–30 mA a 5 mm LED is happiest at and
+past what the 1 kΩ base resistor fully saturates. 68 Ω gives about 22–31 mA.
 
-**LED current.** The listing's 120 mA can't be continuous: at 3.4 V that is 408 mW, more than the
-LED's own 320 mW rating. A 5 mm epoxy LED is happiest at 20–30 mA. 30 mA (about 100 mW) is already
-very bright at 60 000 mcd. Don't go above about 60 mA (27 Ω resistor, 470 Ω base resistor).
+**Why the LED resistor is required.** Without it, nothing sets the current except the
+transistor's gain and the USB supply. The LED would pull hundreds of mA, burn out, and heat
+the transistor.
 
-**Brightness varies between units.** There is only about 1.3 V of headroom between the supply and the
-LED. With 47 Ω, the current lands anywhere from about 20 to 38 mA, depending on the LED's exact Vf and the
-USB supply. That's normal for white LEDs on 5 V.
+**Brightness varies between units.** There is under 2 V of headroom between the supply and
+the LED, so the current depends on the LED's exact Vf and the USB supply. That's normal for
+white LEDs on 5 V.
 
 **Transistor pinout.** Generic "2N2222" TO-92 parts come in two pinouts:
 - PN2222A: E-B-C.
@@ -99,7 +104,7 @@ Both are read with the flat face toward you and the legs down. Check your parts 
 datasheet or a multimeter's diode test before soldering. Base-to-emitter and base-to-collector both read
 about 0.6–0.7 V.
 
-Other LEDs: `R_led = (4.7 V − LED Vf − 0.1 V) / current`.
+Other LEDs: `R_led = (5.0 V − LED Vf − 0.1 V) / current`.
 
 ### MOSFET alternative
 
@@ -120,18 +125,23 @@ If you build a high-side stage instead (PNP or P-MOSFET, LED on when the GPIO is
 - **After a trigger press:** blinks fast (5 Hz) for 3 s.
 - **Tuning:** adjust the `LED_*` constants at the top of the sketch.
 
+## Onboard RGB LED
+
+One WS2812B on GPIO21, powered from 3V3. It takes colours in **RGB** order, not the usual
+WS2812B GRB. If red and green look swapped, change `STATUS_RGB_ORDER` in the sketch.
+Brightness is set by `STATUS_RGB_BRIGHTNESS`.
+
 ## Power budget
 
-The board runs from USB 5 V. Onboard, a Schottky diode feeds the 5 V rail and an 800 mA LDO makes 3.3 V.
+The board runs from USB 5 V. Onboard, an 800 mA LDO (ME6217) makes 3.3 V.
 
 | Load | Typical draw |
 |---|---|
 | ESP32-S3 with radio on | 100–200 mA |
-| Matrix showing one character (brightness 40) | under 100 mA |
-| Status LED | 20–38 mA while lit (less on average, because it pulses) |
+| Onboard RGB LED (brightness 40) | a few mA |
+| Status LED | 22–31 mA while lit (less on average, because it pulses) |
 
-The total stays well within a 500 mA USB port or charger. Keep `MATRIX_BRIGHTNESS` low:
-Waveshare warns that high brightness overheats the board.
+The total stays well within a 500 mA USB port or charger.
 
 ## Reminders
 

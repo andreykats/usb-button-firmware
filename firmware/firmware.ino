@@ -1,11 +1,12 @@
 /*
- * ESP32-S3 Matrix Button
+ * USB Button
  * =========================================================
- * Port of the ESP32-S3 COM POC (QT Py firmware) to the Waveshare ESP32-S3-Matrix.
- * Pressing the BOOT button fires a configurable keystroke; the selected key is
- * shown on the 8x8 RGB matrix, coloured by device state.
+ * Port of the ESP32-S3-Matrix firmware on main (itself a port of the QT Py
+ * firmware) to the Waveshare ESP32-S3-Zero. The trigger button types the
+ * selected key; the BOOT button steps to the next key and types it. The onboard
+ * RGB LED shows the device state.
  *
- * DELIVERY PATHS (chosen automatically by USB enumeration):
+ * DELIVERY PATHS (chosen automatically by USB enumeration, same for both buttons):
  *   - Hosted (a computer enumerated the unit at any point this uptime) → USB HID
  *     keystroke, ahead of every other channel. The unit is also the ESP-NOW
  *     "primary" and types keystrokes relayed from other units, behind its own.
@@ -20,43 +21,42 @@
  *   - WIFI_ENABLED=1       — WebSocket over WiFi + encrypted ESP-NOW credential
  *     sharing. Replaces the ESP-NOW keystroke relay (the two are exclusive).
  *
- * BUTTONS:
- *   - Trigger (external, TRIGGER_BTN_PIN → GND) — sends the keystroke.
- *   - BOOT (GPIO0)                              — key selection: each press steps
- *     to the next key (A–Z, 0–9), shown blinking orange. 3 s after the last press
- *     the key is applied and saved to NVS. The USB product name
- *     ("Matrix Remote [X]") updates at the next power-up.
+ * BUTTONS (every press flashes the RGB LED white if the key was delivered, red if not):
+ *   - Trigger (external, TRIGGER_BTN_PIN → GND) — types the selected key.
+ *   - BOOT (GPIO0) — steps to the next key (A–Z, 0–9), applies it at once and
+ *     types it. Saved to NVS 3 s after the last press. The USB product name
+ *     ("Zero Remote [X]") updates at the next power-up.
  *
  * STATUS LED (external, STATUS_LED_PIN → transistor switching 5V to an LED):
  *   - Idle: one soft fade-in/fade-out pulse every LED_IDLE_PERIOD_MS.
  *   - Trigger pressed: fast blinking for LED_FAST_DURATION_MS, then back to idle.
  *
  * REQUIRED LIBRARIES (install via Arduino Library Manager):
- *   - Adafruit NeoMatrix (pulls in Adafruit GFX Library + Adafruit NeoPixel)
+ *   - None for the default build.
  *   - ESPAsyncWebServer by ESP32Async (only needed when WIFI_ENABLED=1)
  *   - AsyncTCP by ESP32Async         (only needed when WIFI_ENABLED=1)
  *
  * Already built-in (no install needed):
  *   - USB (USBHIDKeyboard, USBCDC)  — part of the esp32 board package
+ *   - rgbLedWriteOrdered()          — part of the esp32 board package
  *   - WiFi                          — part of the esp32 board package
  *   - esp_now                       — part of the esp32 board package
  *
- * BOARD SETTINGS (Tools menu in Arduino IDE, esp32 core 3.3.x):
- *   Board           : ESP32S3 Dev Module
- *   Flash Size      : 4MB (32Mb)          ← ESP32-S3FH4R2
- *   PSRAM           : QSPI PSRAM          ← 2MB quad PSRAM (not OPI)
- *   USB Mode        : USB-OTG (TinyUSB)   ← CRITICAL — HID needs TinyUSB
- *   USB CDC On Boot : Enabled             ← keeps a CDC port for uploads/logs;
- *                                           "Disabled" = HID-only device, flash
- *                                           via BOOT+RESET download mode
+ * BOARD SETTINGS (Tools menu in Arduino IDE, esp32 core 3.3.5+):
+ *   Board           : Waveshare ESP32-S3-Zero  ← 4MB flash fixed by the board
+ *   PSRAM           : Enabled                  ← 2MB quad PSRAM (ESP32-S3FH4R2)
+ *   USB Mode        : USB-OTG (TinyUSB)        ← CRITICAL — HID needs TinyUSB;
+ *                                                the board defaults to Hardware CDC
+ *   USB CDC On Boot : Enabled                  ← keeps a CDC port for uploads/logs;
+ *                                                "Disabled" = HID-only device, flash
+ *                                                via BOOT+RESET download mode
  *   Upload Mode     : USB-OTG CDC (TinyUSB)
  *
- * HARDWARE PINS (from ESP32-S3-Matrix schematic, resources/):
- *   GPIO 0   — BOOT button (Key2, active LOW, 10K external pull-up) — key select
+ * HARDWARE PINS (from ESP32-S3-Zero schematic, resources/):
+ *   GPIO 0   — BOOT button (active LOW, 10K external pull-up) — key select
  *   GPIO 1   — trigger button (external, to GND, internal pull-up) — TRIGGER_BTN_PIN
  *   GPIO 2   — status LED transistor drive (PWM, HIGH = LED on)    — STATUS_LED_PIN
- *   GPIO 14  — WS2812B 8x8 matrix data (via MOSFET level shifter, 5V LEDs)
- *   GPIO 11/12 — QMI8658 IMU SDA/SCL, GPIO 10/13 — IMU INT1/INT2 (unused)
+ *   GPIO 21  — onboard WS2812B RGB LED data (RGB colour order)     — STATUS_RGB_PIN
  *   There is no VBUS sense pin: host vs. power-only is detected by USB
  *   enumeration.
  *
@@ -93,21 +93,20 @@
  *     WIFI:ssid:password\n  Send credentials (WIFI_ENABLED=1 only)
  *     WIFI_CLEAR\n          Erase saved WiFi credentials (WIFI_ENABLED=1 only)
  *
- * MATRIX STATUS (the selected key is drawn in the state colour):
- *   Fast yellow blink       — USB enumeration in progress at boot
- *   Blinking green  (500ms) — power only, no primary found yet
- *   Solid green             — USB host present: HID + primary hub
- *   Solid yellow            — hosted, host asleep/unplugged: waiting for it
- *   Solid purple            — power only, relaying via primary
- *   Solid blue              — Web Serial connected (WEB_SERIAL_ENABLED=1)
- *   White (held)            — trigger pressed, keystroke delivered
- *   Red (held)              — trigger pressed, no delivery path
- *   Blinking orange         — choosing a key (BOOT presses)
- *   Blinking blue   (500ms) — connecting to WiFi (WIFI_ENABLED=1)
- *   Alternating purple/blue — WiFi up, waiting for WS client (WIFI_ENABLED=1)
- *   Solid blue              — WiFi + WebSocket connected (WIFI_ENABLED=1)
- *   Blinking red 10x(250ms) — WiFi failed (WIFI_ENABLED=1)
- *   Blinking red    (250ms) — unrecoverable error
+ * RGB STATUS LED:
+ *   Blinking yellow (150ms) — booting: waiting to learn whether a computer is attached
+ *   Solid green             — computer connected: HID + primary hub (also Web Serial)
+ *   Blinking green  (500ms) — computer was connected but is asleep/unplugged: waiting
+ *   Solid blue              — no computer, connected to the mesh via a primary
+ *   Blinking blue   (500ms) — no computer, looking for a primary
+ *   Blinking red    (250ms) — error (ESP-NOW failed to start); held until reboot
+ *   White flash             — button press delivered (trigger or BOOT)
+ *   Red flash               — button press could not be delivered
+ *   WiFi mode (WIFI_ENABLED=1):
+ *   Blinking blue   (500ms) — connecting to WiFi
+ *   Alternating purple/blue — WiFi up, waiting for WS client
+ *   Solid blue              — WiFi + WebSocket connected
+ *   Blinking red 10x(250ms) — WiFi failed
  */
 
 // ─── Compile-time tuning switches ────────────────────────────────────────────
@@ -132,8 +131,6 @@
 #include <USB.h>              // ESP32 built-in USB stack (TinyUSB)
 #include <USBHIDKeyboard.h>   // Built-in HID keyboard (part of USB library)
 #include <tusb.h>             // tud_mounted() / tud_suspended() for host tracking
-#include <Adafruit_GFX.h>
-#include <Adafruit_NeoMatrix.h>
 #include <WiFi.h>
 #include <esp_wifi.h>             // WiFi power-save control + channel setting
 #include <esp_now.h>              // ESP-NOW peer-to-peer communication
@@ -171,11 +168,11 @@ USBHID         HID;
 
 // ─── Hardware ──────────────────────────────────────────────────────────────
 // Trigger: external momentary switch between this pin and GND. GPIO1 is a header
-// pin with no strapping/USB/IMU/matrix role; avoid strapping pins 0, 3, 45, 46.
+// pin with no strapping/USB/LED role; avoid strapping pins 0, 3, 45, 46.
 #define TRIGGER_BTN_PIN  1    // Active LOW, internal pull-up
-#define KEY_BTN_PIN      0    // BOOT (Key2), active LOW, 10K external pull-up
+#define KEY_BTN_PIN      0    // BOOT (K2), active LOW, 10K external pull-up
 #define DEBOUNCE_MS      50
-const unsigned long KEY_SELECT_COMMIT_MS = 3000;  // apply + save this long after the last BOOT press
+const unsigned long KEY_SAVE_DELAY_MS = 3000;  // save to NVS this long after the last BOOT press
 
 // ─── External status LED (transistor-switched 5V) ──────────────────────────
 // GPIO drives the transistor base/gate; HIGH = LED on (low-side NPN / N-MOSFET).
@@ -190,18 +187,14 @@ const unsigned long LED_IDLE_PULSE_MS    = 1200;  // fade up + down duration of 
 const unsigned long LED_FAST_DURATION_MS = 3000;  // fast pulsing after a trigger press
 const unsigned long LED_FAST_PERIOD_MS   = 200;   // 100 ms on / 100 ms off
 
-// ─── 8x8 RGB matrix ────────────────────────────────────────────────────────
-// Layout and colour order match Waveshare's Font demo (resources/ESP32-S3-Matrix-Demo).
-// Keep brightness low — Waveshare warns high brightness overheats the board.
-#define MATRIX_PIN         14
-#define MATRIX_BRIGHTNESS  40
-Adafruit_NeoMatrix matrix(8, 8, MATRIX_PIN,
-  NEO_MATRIX_TOP     + NEO_MATRIX_RIGHT +
-  NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,
-  NEO_GRB            + NEO_KHZ800);
-// Classic GFX font is 5x7 (+1 col spacing): centre it in the 8x8 grid.
-const int16_t GLYPH_X = 1;
-const int16_t GLYPH_Y = 0;
+// ─── Onboard RGB status LED (WS2812B) ──────────────────────────────────────
+// Driven by the core's rgbLedWriteOrdered() (RMT). The S3-Zero's LED takes RGB
+// order, not the usual WS2812B GRB (matches the core's waveshare_esp32_s3_zero
+// variant). If red and green look swapped on hardware, change STATUS_RGB_ORDER.
+#define STATUS_RGB_PIN         21
+#define STATUS_RGB_ORDER       LED_COLOR_ORDER_RGB
+#define STATUS_RGB_BRIGHTNESS  40     // 0–255 scale applied to every colour
+const unsigned long RGB_FLASH_MS = 120;  // white/red press-feedback flash
 
 // ─── WebSocket server (only for WiFi mode) ─────────────────────────────────
 #if WIFI_ENABLED
@@ -211,7 +204,7 @@ AsyncWebSocket ws("/");
 
 // ─── State machine ─────────────────────────────────────────────────────────
 enum DeviceState {
-  STATE_BOOT_OK,           // Blink green — no USB host (charger/power only, or no USB)
+  STATE_BOOT_OK,           // Blink blue  — no USB host (charger/power only), no primary yet
   STATE_SERIAL_CONNECTED,  // Solid green — browser connected via Web Serial (= primary, serial open)
 #if WIFI_ENABLED
   STATE_WIFI_CONNECTING,   // Blink blue   — waiting for WiFi association
@@ -220,15 +213,16 @@ enum DeviceState {
   STATE_WIFI_FAILED,       // Blink red 10x — WiFi failed, then revert to green
 #else
   STATE_USB_HOST,          // Solid green — USB host enumerated, primary role active, no serial yet
-  STATE_HOST_AWAY,         // Solid yellow — hosted, host asleep/unplugged, waiting for it
-  STATE_RELAY_READY,       // Solid purple — remote device, knows primary, ready to relay
+  STATE_HOST_AWAY,         // Blink green — hosted, host asleep/unplugged, waiting for it
+  STATE_RELAY_READY,       // Solid blue  — remote device, knows primary, ready to relay
 #endif
-  STATE_ERROR              // Blink red   — unrecoverable error
+  STATE_ERROR              // Blink red   — unrecoverable error (held until reboot)
 };
 DeviceState currentState = STATE_BOOT_OK;
 
 // ─── Configurable HID key (persisted in NVS flash) ─────────────────────────
 char           hidKey        = 'Q';
+char           savedHidKey   = 'Q';   // value currently in NVS
 Preferences    prefs;
 
 // ─── Globals ───────────────────────────────────────────────────────────────
@@ -236,8 +230,7 @@ Preferences    prefs;
 unsigned long lastBtnTime    = 0;
 bool          btnWasPressed  = false;
 int           seqCounter     = 0;
-bool          lastPressRouted = false;  // last press reached HID or the ESP-NOW primary
-bool          pendingTriggerPress = false;  // pressed during the boot USB wait; sent once the path is known
+bool          pendingPress   = false;   // trigger/BOOT press during the boot USB wait; sent once the path is known
 
 // HID output: one key tap at a time. The local trigger preempts; relayed taps queue.
 bool          hidKeyDown     = false;   // a key-down report may be on the host; release still owed
@@ -255,17 +248,17 @@ bool          ledFastActive    = false;
 unsigned long ledPhaseStartMs  = 0;       // start of the current fast or idle cycle
 uint32_t      ledLastDuty      = 0xFFFFFFFFUL;
 
-// Key selection (BOOT presses)
-bool          keySelectActive = false;
-char          keySelectChar   = 'Q';
-unsigned long keySelectLastMs = 0;
+// Key selection (BOOT presses): hidKey changes at once, the NVS write is deferred
+bool          keySavePending = false;
+unsigned long keyLastStepMs  = 0;
 
-// Display blink + redraw cache
+// RGB status LED: blink phase, press-feedback flash, write cache
 unsigned long lastBlinkMs    = 0;
 bool          blinkPhase     = false;
-char          shownChar      = 0;
-uint16_t      shownColor     = 0xFFFF;
-bool          shownValid     = false;
+bool          rgbFlashActive = false;
+bool          rgbFlashOk     = false;   // white (delivered) vs red (not delivered)
+unsigned long rgbFlashStartMs = 0;
+uint32_t      rgbShown       = 0xFFFFFFFFUL;  // last packed colour written; invalid until first write
 
 // USB host tracking (polled from TinyUSB in handleHostEnumeration())
 bool          usbHostReady   = false;  // mounted and not suspended: HID reports can be delivered
@@ -280,7 +273,7 @@ size_t        serialLineBufLen = 0;
 bool          serialWasOpen  = false;
 
 // ─── ESP-NOW common ────────────────────────────────────────────────────────
-static const uint32_t ESPNOW_MAGIC   = 0x51545059;  // "QTPY" — kept so Matrix units interoperate with QT Py units
+static const uint32_t ESPNOW_MAGIC   = 0x51545059;  // "QTPY" — kept so Zero, Matrix and QT Py units interoperate
 static const uint8_t  ESPNOW_CHANNEL = 1;            // agreed broadcast channel
 static const uint8_t  ESPNOW_BROADCAST[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 bool espNowInitialized = false;
@@ -291,30 +284,33 @@ bool espNowInitialized = false;
 #define ESPNOW_PKT_KEYSTROKE  0x02
 
 // ─── Color helpers ─────────────────────────────────────────────────────────
-// Full-scale colours; overall output is limited by MATRIX_BRIGHTNESS.
+// Full-scale colours; overall output is limited by STATUS_RGB_BRIGHTNESS.
 struct RGB { uint8_t r, g, b; };
 
 const RGB COLOR_GREEN  = {0,   255, 0  };
 const RGB COLOR_BLUE   = {0,   0,   255};
-const RGB COLOR_ORANGE = {255, 80,  0  };
 const RGB COLOR_YELLOW = {255, 200, 0  };
 const RGB COLOR_RED    = {255, 0,   0  };
 const RGB COLOR_PURPLE = {160, 0,   255};
 const RGB COLOR_WHITE  = {200, 200, 200};
 const RGB COLOR_OFF    = {0,   0,   0  };
 
-// Draw one character centred on the matrix in colour c (COLOR_OFF = blank).
-// Only pushes to the LEDs when the character or colour actually changes.
-void showGlyph(char ch, RGB c) {
-  uint16_t color = matrix.Color(c.r, c.g, c.b);
-  if (color == 0) ch = 0;
-  if (shownValid && ch == shownChar && color == shownColor) return;
-  shownValid = true;
-  shownChar  = ch;
-  shownColor = color;
-  matrix.fillScreen(0);
-  if (ch) matrix.drawChar(GLYPH_X, GLYPH_Y, ch, color, 0, 1);
-  matrix.show();
+// Set the onboard RGB LED to colour c. Only writes when the colour changes.
+void showStatus(RGB c) {
+  uint8_t r = (uint16_t)c.r * STATUS_RGB_BRIGHTNESS / 255;
+  uint8_t g = (uint16_t)c.g * STATUS_RGB_BRIGHTNESS / 255;
+  uint8_t b = (uint16_t)c.b * STATUS_RGB_BRIGHTNESS / 255;
+  uint32_t packed = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+  if (packed == rgbShown) return;
+  rgbShown = packed;
+  rgbLedWriteOrdered(STATUS_RGB_PIN, STATUS_RGB_ORDER, r, g, b);
+}
+
+// Brief white (delivered) or red (not delivered) flash over the status colour.
+void flashStatus(bool delivered) {
+  rgbFlashActive  = true;
+  rgbFlashOk      = delivered;
+  rgbFlashStartMs = millis();
 }
 
 // ─── State management ──────────────────────────────────────────────────────
@@ -1048,65 +1044,62 @@ void handleRelay() {
 // Common code — LED, Serial, Button, Setup, Loop
 // ============================================================================
 
-// ─── Display handler (non-blocking, called every loop) ─────────────────────
-// Draws the selected key in the colour of the current state.
-void handleDisplay() {
+// ─── RGB status LED handler (non-blocking, called every loop) ──────────────
+// Toggles blinkPhase every periodMs and returns it.
+bool blinkEvery(unsigned long periodMs) {
   unsigned long now = millis();
+  if (now - lastBlinkMs >= periodMs) {
+    lastBlinkMs = now;
+    blinkPhase  = !blinkPhase;
+  }
+  return blinkPhase;
+}
+
+// Shows the state colour, with a press-feedback flash on top.
+void handleStatusRgb() {
+  unsigned long now = millis();
+
+  // Button press feedback: white = delivered, red = nowhere to go
+  if (rgbFlashActive) {
+    if (now - rgbFlashStartMs < RGB_FLASH_MS) {
+      showStatus(rgbFlashOk ? COLOR_WHITE : COLOR_RED);
+      return;
+    }
+    rgbFlashActive = false;
+  }
+
+  // Errors win over the boot window so a failed start shows at once
+  if (currentState == STATE_ERROR) {
+    showStatus(blinkEvery(250) ? COLOR_RED : COLOR_OFF);
+    return;
+  }
 
   // Boot window: still waiting to learn whether a host is attached
   if (usbWaitActive) {
-    showGlyph(hidKey, (now / 150) % 2 ? COLOR_YELLOW : COLOR_OFF);
-    return;
-  }
-
-  // Trigger held: white if the press was delivered, red if it had nowhere to go
-  if (btnWasPressed) {
-    showGlyph(hidKey, lastPressRouted ? COLOR_WHITE : COLOR_RED);
-    return;
-  }
-
-  // Choosing a key: candidate blinks orange until it is committed
-  if (keySelectActive) {
-    if (now - lastBlinkMs >= 300) {
-      lastBlinkMs = now;
-      blinkPhase  = !blinkPhase;
-    }
-    showGlyph(keySelectChar, blinkPhase ? COLOR_ORANGE : COLOR_OFF);
+    showStatus((now / 150) % 2 ? COLOR_YELLOW : COLOR_OFF);
     return;
   }
 
   switch (currentState) {
     case STATE_BOOT_OK:
-      if (now - lastBlinkMs >= 500) {
-        lastBlinkMs = now;
-        blinkPhase  = !blinkPhase;
-      }
-      showGlyph(hidKey, blinkPhase ? COLOR_GREEN : COLOR_OFF);
+      showStatus(blinkEvery(500) ? COLOR_BLUE : COLOR_OFF);
       break;
 
     case STATE_SERIAL_CONNECTED:
-      showGlyph(hidKey, COLOR_BLUE);
+      showStatus(COLOR_GREEN);
       break;
 
 #if WIFI_ENABLED
     case STATE_WIFI_CONNECTING:
-      if (now - lastBlinkMs >= 500) {
-        lastBlinkMs = now;
-        blinkPhase  = !blinkPhase;
-      }
-      showGlyph(hidKey, blinkPhase ? COLOR_BLUE : COLOR_OFF);
+      showStatus(blinkEvery(500) ? COLOR_BLUE : COLOR_OFF);
       break;
 
     case STATE_WS_WAITING:
-      if (now - lastBlinkMs >= 500) {
-        lastBlinkMs = now;
-        blinkPhase  = !blinkPhase;
-      }
-      showGlyph(hidKey, blinkPhase ? COLOR_PURPLE : COLOR_BLUE);
+      showStatus(blinkEvery(500) ? COLOR_PURPLE : COLOR_BLUE);
       break;
 
     case STATE_WS_READY:
-      showGlyph(hidKey, COLOR_BLUE);
+      showStatus(COLOR_BLUE);
       break;
 
     case STATE_WIFI_FAILED:
@@ -1116,29 +1109,24 @@ void handleDisplay() {
           blinkPhase  = !blinkPhase;
           if (!blinkPhase) wifiFailBlinkCount++;
         }
-        showGlyph(hidKey, blinkPhase ? COLOR_RED : COLOR_OFF);
+        showStatus(blinkPhase ? COLOR_RED : COLOR_OFF);
       }
       break;
 #else
     case STATE_USB_HOST:
-      showGlyph(hidKey, COLOR_GREEN);
+      showStatus(COLOR_GREEN);
       break;
 
     case STATE_HOST_AWAY:
-      showGlyph(hidKey, COLOR_YELLOW);
+      showStatus(blinkEvery(500) ? COLOR_GREEN : COLOR_OFF);
       break;
 
     case STATE_RELAY_READY:
-      showGlyph(hidKey, COLOR_PURPLE);
+      showStatus(COLOR_BLUE);
       break;
 #endif
 
-    case STATE_ERROR:
-      if (now - lastBlinkMs >= 250) {
-        lastBlinkMs = now;
-        blinkPhase  = !blinkPhase;
-      }
-      showGlyph(hidKey, blinkPhase ? COLOR_RED : COLOR_OFF);
+    case STATE_ERROR:   // handled above
       break;
   }
 }
@@ -1205,6 +1193,8 @@ void parseSerialLine(const char *line) {
       prefs.begin("remote", false);
       prefs.putUChar("hid_key", (uint8_t)newKey);
       prefs.end();
+      savedHidKey    = newKey;
+      keySavePending = false;   // the browser's choice wins over an unsaved BOOT selection
       Serial.printf("KEY_SAVED:%c — send REBOOT to apply\n", newKey);
     } else {
       Serial.println("ERR:KEY_INVALID — must be a single letter or digit");
@@ -1216,6 +1206,8 @@ void parseSerialLine(const char *line) {
     prefs.begin("remote", false);
     prefs.remove("hid_key");
     prefs.end();
+    savedHidKey    = 'Q';
+    keySavePending = false;
     Serial.println("KEY_CLEARED — send REBOOT to apply");
     return;
   }
@@ -1310,9 +1302,10 @@ void handleSerial() {
 
 #endif // WEB_SERIAL_ENABLED
 
-// ─── Button press action ───────────────────────────────────────────────────
+// ─── Key delivery (trigger and BOOT presses) ─────────────────────────────────
 // Hosted → HID keystroke, before anything else. Never hosted → ESP-NOW to the primary.
-void buttonPressed() {
+// Flashes the RGB LED white if the key went out, red if it had nowhere to go.
+void sendSelectedKey() {
   bool routed = false;
 
   // 1. USB HID — first, ahead of every other channel. Preempts any relayed tap.
@@ -1349,7 +1342,13 @@ void buttonPressed() {
   }
 #endif
 
-  lastPressRouted = routed;
+  flashStatus(routed);
+}
+
+// Send now, or hold the press until the boot USB wait knows the delivery path.
+void keyPressed() {
+  if (usbWaitActive) pendingPress = true;
+  else               sendSelectedKey();
 }
 
 // ─── Key-select mode ─────────────────────────────────────────────────────────
@@ -1361,20 +1360,22 @@ char nextKeyChar(char c) {
   return 'A';
 }
 
-// Apply the chosen key now (HID + ESP-NOW use hidKey directly) and persist it.
-// Only one NVS write per selection, not one per press.
-void commitKeySelect() {
-  keySelectActive = false;
-  if (keySelectChar == hidKey) {
+// Persist the key once BOOT presses stop — one NVS write per selection, not per press.
+void saveHidKey() {
+  keySavePending = false;
+  if (hidKey == savedHidKey) {
     LOG_PRINTLN("LOG:KEYSEL_UNCHANGED");
     return;
   }
-  hidKey = keySelectChar;
   prefs.begin("remote", false);
-  prefs.putUChar("hid_key", (uint8_t)hidKey);
+  size_t written = prefs.putUChar("hid_key", (uint8_t)hidKey);
   prefs.end();
+  if (written == 0) {
+    if ((bool)Serial) Serial.println("ERR:KEY_SAVE_FAILED");
+    return;
+  }
+  savedHidKey = hidKey;
   LOG_PRINTF("LOG:KEYSEL_SAVED key=%c ts=%lu\n", hidKey, millis());
-  PROTO_PRINTF("CONFIG:key=%c\n", hidKey);
 }
 
 // ─── External status LED (non-blocking) ────────────────────────────────────
@@ -1427,8 +1428,7 @@ void handleStatusLed() {
 }
 
 // ─── Trigger button (50ms debounce) ────────────────────────────────────────
-// Keystroke fires on press for lowest latency. During the boot USB wait the press
-// is held and sent by handleHostEnumeration() once the delivery path is known.
+// Keystroke fires on press for lowest latency.
 void handleTriggerButton() {
   bool rawReading  = digitalRead(TRIGGER_BTN_PIN);
   unsigned long now = millis();
@@ -1437,8 +1437,7 @@ void handleTriggerButton() {
     if (now - lastBtnTime >= DEBOUNCE_MS) {
       lastBtnTime   = now;
       btnWasPressed = true;
-      if (usbWaitActive) pendingTriggerPress = true;
-      else               buttonPressed();
+      keyPressed();
       startStatusLedFast();
     }
   } else if (rawReading == HIGH && btnWasPressed) {
@@ -1448,8 +1447,8 @@ void handleTriggerButton() {
 }
 
 // ─── BOOT button: key selection (50ms debounce) ────────────────────────────
-// Each press steps to the next key; the choice is committed after
-// KEY_SELECT_COMMIT_MS without further presses.
+// Each press steps to the next key, applies it at once and types it like a
+// trigger press. The key is saved KEY_SAVE_DELAY_MS after the last press.
 void handleKeyButton() {
   bool rawReading  = digitalRead(KEY_BTN_PIN);
   unsigned long now = millis();
@@ -1458,23 +1457,20 @@ void handleKeyButton() {
     if (now - lastKeyBtnTime >= DEBOUNCE_MS) {
       lastKeyBtnTime   = now;
       keyBtnWasPressed = true;
-      if (!keySelectActive) {
-        keySelectActive = true;
-        keySelectChar   = hidKey;
-      }
-      keySelectChar   = nextKeyChar(keySelectChar);
-      keySelectLastMs = now;
-      blinkPhase      = true;   // show the new key immediately
-      lastBlinkMs     = now;
-      LOG_PRINTF("LOG:KEYSEL key=%c ts=%lu\n", keySelectChar, now);
+      hidKey           = nextKeyChar(hidKey);
+      keySavePending   = true;
+      keyLastStepMs    = now;
+      LOG_PRINTF("LOG:KEYSEL key=%c ts=%lu\n", hidKey, now);
+      PROTO_PRINTF("CONFIG:key=%c\n", hidKey);
+      keyPressed();
     }
   } else if (rawReading == HIGH && keyBtnWasPressed) {
     lastKeyBtnTime   = now;
     keyBtnWasPressed = false;
   }
 
-  if (keySelectActive && !keyBtnWasPressed && now - keySelectLastMs >= KEY_SELECT_COMMIT_MS) {
-    commitKeySelect();
+  if (keySavePending && !keyBtnWasPressed && now - keyLastStepMs >= KEY_SAVE_DELAY_MS) {
+    saveHidKey();
   }
 }
 
@@ -1487,6 +1483,7 @@ void initEspNow() {
 
   if (esp_now_init() != ESP_OK) {
     if ((bool)Serial) Serial.println("ERR:ESPNOW_INIT_FAILED");
+    setState(STATE_ERROR);
     return;
   }
 
@@ -1520,11 +1517,8 @@ void initEspNow() {
 
 // ─── setup() ───────────────────────────────────────────────────────────────
 void setup() {
-  // 1. LED matrix
-  matrix.begin();
-  matrix.setBrightness(MATRIX_BRIGHTNESS);
-  matrix.setTextWrap(false);
-  showGlyph(0, COLOR_OFF);
+  // 1. RGB status LED
+  showStatus(COLOR_OFF);
 
   // 2. Buttons + external status LED
   pinMode(TRIGGER_BTN_PIN, INPUT_PULLUP);
@@ -1541,12 +1535,13 @@ void setup() {
   prefs.end();
   if (!isAlphaNumeric(hidKey)) hidKey = 'Q';
   hidKey = toUpperCase(hidKey);
+  savedHidKey = hidKey;
 
   Keyboard.begin();
   Serial.begin(115200);
   USB.manufacturerName("Andrey");
   char productName[32];
-  snprintf(productName, sizeof(productName), "Matrix Remote [%c]", hidKey);
+  snprintf(productName, sizeof(productName), "Zero Remote [%c]", hidKey);
   USB.productName(productName);
   USB.begin();
 
@@ -1627,9 +1622,9 @@ void handleHostEnumeration() {
 
   if (usbWaitActive && (mounted || millis() - usbWaitStartMs >= USB_ENUM_WAIT_MS)) {
     usbWaitActive = false;
-    if (pendingTriggerPress) {
-      pendingTriggerPress = false;
-      buttonPressed();
+    if (pendingPress) {
+      pendingPress = false;
+      sendSelectedKey();
     }
   }
 }
@@ -1647,7 +1642,7 @@ void loop() {
   handleRelay();
 #endif
   handleKeyButton();
-  handleDisplay();
+  handleStatusRgb();
   handleStatusLed();
 #if WEB_SERIAL_ENABLED
   handleSerial();
