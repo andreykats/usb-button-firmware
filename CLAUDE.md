@@ -72,4 +72,29 @@ arduino-cli compile -b "$FQBN" --build-property "tools.ctags.pattern=/usr/bin/tr
 Web app (only with `WEB_SERIAL_ENABLED=1`): `python3 website/serve.py` opens Chrome at
 http://127.0.0.1:8080.
 
+## Fleet flashing (this Mac)
+
+`~/.local/usb-button-tools/flash_fleet.py` (outside the repo; also has a `qtpy` profile for
+the `qtpy-samd21` branch). esptool 5.x from the esp32 core is native arm64. Build with
+`--output-dir`, then copy `firmware.ino.bootloader.bin`, `.partitions.bin`, `.bin` and the
+core's `tools/partitions/boot_app0.bin` into `zero-<commit>/` as `bootloader.bin`,
+`partitions.bin`, `app.bin`, `boot_app0.bin`.
+
+```bash
+python3 -I flash_fleet.py zero zero-<commit> --watch --until N
+```
+
+Each board not yet logged ok is flashed as `board-NN`, verified (same USB location back as
+303A:822B with a HID interface) and logged by USB serial (the MAC) to `flash-log-zero.csv`.
+
+- Boards in USB-Serial/JTAG mode (303A:1001: factory firmware or ROM) are reset into
+  download mode by esptool. The running sketch (303A:822B) gets a 1200-baud touch first.
+  No serial port at all: hold BOOT while plugging in.
+- `write-flash --erase-all`: NVS starts empty, so every board starts on the default key.
+- `--after watchdog-reset`, not `hard-reset`: over USB-Serial/JTAG `hard-reset` is only a
+  core reset, and the sketch then enumerated with no interfaces (no HID, no CDC) until
+  power-cycled.
+- The product string read `ESP32-S3-Zero` / `ESP32_S3_Zero`, not `Zero Remote [1]`, on the
+  first boot and after one power cycle (2026-10-25).
+
 Ask the user to do any physical hardware action (plugging in, pressing buttons).
