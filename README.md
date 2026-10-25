@@ -1,121 +1,72 @@
-# ESP32-S3 Matrix Button
+# USB Button (Advanced Type)
 
-A port of [esp32s3-com-poc](../../Sidetable/esp32s3-com-poc) (QT Py firmware) to the
-[Waveshare ESP32-S3-Matrix](https://docs.waveshare.com/ESP32-S3-Matrix). Pressing an
-external trigger button sends a configurable keystroke; the onboard BOOT button picks the
-key. The selected key is shown on the 8×8 RGB matrix, drawn in a colour that reflects the
-device state.
+A one-key USB keyboard. Plug it into a computer, press the trigger button, and the
+computer receives the selected key as if it were typed on a keyboard.
 
-## How it works
+It is a standard USB HID keyboard, so it works on macOS, Windows, Linux, iOS/iPadOS and
+Android with no drivers or software. Phones and tablets need a USB-C port or a USB
+adapter.
 
-The delivery path is chosen automatically by whether a USB host enumerates the board
-(the board has no VBUS sense pin, so enumeration is the only signal):
+Holding the trigger works like holding a key on a keyboard: the computer starts
+repeating the key after a short delay.
 
-| Plugged into | Behaviour |
-|---|---|
-| A computer | **USB HID keyboard**. The unit also becomes the ESP-NOW **primary** and types keystrokes relayed from other units; its own trigger always goes first. |
-| USB power only (charger) | Keystroke is sent to the primary via **ESP-NOW** unicast; the primary types it on its computer. |
+The selected key is shown on the button's 8×8 light display, in a colour that shows
+what the button is doing (see [Lights](#lights)).
 
-Once a computer has enumerated the unit, it stays a HID unit until it is power-cycled. If
-the computer sleeps or is unplugged (e.g. from a self-powered hub), the unit waits for it
-to come back instead of switching to ESP-NOW. A unit powered from a hub before the
-computer is attached starts as an ESP-NOW remote and switches to HID when the computer
-enumerates it.
+## Wireless buttons
 
-Matrix units use the same ESP-NOW packet format as the QT Py firmware, so the two can
-relay for each other.
+A button doesn't have to be plugged into a computer. Plugged into a charger, it sends
+its key wirelessly to a nearby button that *is* plugged into a computer, and that button
+types it. Several wireless buttons can share one connected button.
 
-Web Serial and WiFi/WebSocket are **disabled by default** (compile-time flags, below).
-
-## Hardware
-
-- **Board**: Waveshare ESP32-S3-Matrix — ESP32-S3FH4R2 (4 MB flash, 2 MB quad PSRAM)
-- **Trigger button**: external, GPIO1 → GND
-- **Status LED**: external, transistor-switched 5 V, driven from GPIO2 (PWM)
-- **Key button**: onboard BOOT (GPIO0)
-- **Display**: onboard 8×8 WS2812B matrix on GPIO14
-
-See **[HARDWARE.md](HARDWARE.md)** for the header pinout, wiring diagrams and part
-recommendations. Schematic, datasheets and Waveshare demo code are in [resources/](resources/).
-
-> Keep `MATRIX_BRIGHTNESS` low — Waveshare warns that high brightness overheats the board.
-
-## Setup
-
-### Arduino IDE board settings (esp32 core 3.3.x)
-
-| Setting | Value |
-|---|---|
-| Board | ESP32S3 Dev Module |
-| Flash Size | 4MB (32Mb) |
-| PSRAM | QSPI PSRAM |
-| USB Mode | USB-OTG (TinyUSB) — **required for HID** |
-| USB CDC On Boot | Enabled (keeps a CDC port for uploads/logs) |
-| Upload Mode | USB-OTG CDC (TinyUSB) |
-
-Setting *USB CDC On Boot* to Disabled makes the board a pure HID device; you then flash it
-by holding BOOT and tapping RESET to enter download mode.
-
-**Libraries:** `Adafruit NeoMatrix` (pulls in Adafruit GFX + Adafruit NeoPixel).
-WiFi mode additionally needs the ESP32Async forks of `ESPAsyncWebServer` and `AsyncTCP`.
-
-Open `firmware/firmware.ino` and upload.
-
-### Command line
-
-```bash
-arduino-cli compile -b 'esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,UploadMode=cdc,FlashSize=4M,PSRAM=enabled' firmware
-arduino-cli upload  -b 'esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,UploadMode=cdc,FlashSize=4M,PSRAM=enabled' -p <port> firmware
-```
-
-On Apple Silicon without Rosetta, the Arduino-bundled `ctags` (x86_64 only) fails with
-`bad CPU type in executable`. `ctags` only auto-generates function prototypes, and this
-sketch declares every function before use, so skip that step:
-`--build-property "tools.ctags.pattern=/usr/bin/true"`.
-
-### Compile-time flags
-
-| Flag | Default | Effect |
-|---|---|---|
-| `WEB_SERIAL_ENABLED` | 0 | Web Serial protocol for the browser app in [website/](website/). Needs *USB CDC On Boot: Enabled*. |
-| `WIFI_ENABLED` | 0 | WebSocket over WiFi + encrypted ESP-NOW credential sharing. **Replaces** the ESP-NOW keystroke relay. |
-| `ENABLE_VERBOSE_LOGS` | 0 | `LOG:` diagnostics over the CDC port. |
-
-Set them at the top of the sketch, or with
-`--build-property "compiler.cpp.extra_flags=-DWEB_SERIAL_ENABLED=1"`.
+- The connected button's own presses always go first.
+- A wireless press is typed as a single key press: holding the trigger does not repeat.
+- A button that was plugged into a computer stays a computer button until it is
+  unplugged, even if the computer goes to sleep.
 
 ## Choosing the key
 
-The key (A–Z, 0–9, default `Q`) is stored in flash.
+There are 36 keys to choose from: the letters a–z (typed in lower case) and the digits
+0–9. The default key is `1`.
 
-1. Press BOOT — the display steps to the next key, blinking orange.
-2. Keep pressing to step through A–Z, 0–9.
-3. Stop pressing: 3 s later the key is applied and saved (no reboot).
+Press the small **BOOT** button on the board to step to the next key: a, b, c … z, then
+0, 1 … 9, then back to a. Each press shows the new key on the display and types it
+straight away. The button remembers its key when unplugged.
 
-The trigger keeps sending the previous key until the new one is applied. The USB product
-name (`Matrix Remote [Q]`) updates at the next power-up. With `WEB_SERIAL_ENABLED=1` the
-browser app can also set the key (`KEY:x`, then the device reboots).
+Don't hold BOOT while plugging the button in: that puts the board into firmware-update
+mode. Unplug it and plug it back in to recover.
 
-## Matrix status guide
+## Hardware requirements
 
-| Key colour | Meaning |
+> ⚠️ **A powered USB hub is required.** To connect buttons through a hub, use one with
+> its own power supply. Unpowered (bus-powered) hubs are not supported.
+
+Allow **2.5 W per button port** (5 V, 500 mA). The hub's power supply must cover every
+port in use: for example, a 10-port hub with a button on each port needs a power supply
+of at least **25 W**.
+
+A wireless button can use any USB charger rated 5 V, 500 mA or more.
+
+## Lights
+
+**Display (on the board)**
+
+The selected key is drawn in the colour below.
+
+| Colour | Meaning |
 |---|---|
-| Yellow, fast blink | Waiting for USB enumeration (first 4 s after boot) |
-| Green, solid | Computer connected: HID + primary hub |
-| Yellow, solid | Computer was connected but is asleep or unplugged — waiting for it |
-| Green, blinking | Power only, no primary found yet |
-| Purple, solid | Power only, relaying through a primary |
-| Blue, solid | Web Serial connected (`WEB_SERIAL_ENABLED=1`) |
-| White (trigger held) | Keystroke delivered |
-| Red (trigger held) | Not delivered (power only with no primary, or computer asleep/unplugged) |
-| Orange, blinking | Choosing a key (BOOT presses) |
+| 🟡 Yellow, fast blink | Starting up (a few seconds after plugging in) |
+| 🟢 Green, solid | Connected to a computer and ready; also types keys from wireless buttons |
+| 🟢 Green, blinking | The computer is asleep or unplugged: waiting for it to come back |
+| 🔵 Blue, solid | Wireless: linked to a connected button and ready |
+| 🔵 Blue, blinking | Wireless: looking for a connected button |
+| 🔴 Red, blinking | Fault: unplug and plug back in |
+| ⚪ White while a button is held | The key press was delivered |
+| 🔴 Red while a button is held | The key press could not be delivered |
 
-WiFi-mode colours are listed in the sketch header.
+**Trigger light**
 
-## Web app (optional)
-
-Only useful with `WEB_SERIAL_ENABLED=1`:
-
-```bash
-python3 website/serve.py          # opens Chrome at http://127.0.0.1:8080
-```
+| Light | Meaning |
+|---|---|
+| ⚪ Slow breathing | Ready |
+| ⚪ Fast blinking | A button is being held |

@@ -281,8 +281,8 @@
   <button id="btn-clear">Clear All</button>
   <span class="sep" id="key-sep" style="display:none">|</span>
   <label id="key-label" style="display:none">Device Key</label>
-  <input type="text" id="device-key" maxlength="1" placeholder="Q"
-    style="display:none; width:48px; text-align:center; text-transform:uppercase; font-weight:700; font-size:15px"
+  <input type="text" id="device-key" maxlength="1" placeholder="1"
+    style="display:none; width:48px; text-align:center; text-transform:lowercase; font-weight:700; font-size:15px"
     title="Single letter or digit this device sends on button press">
   <button id="btn-set-key" style="display:none; background:var(--orange); color:#fff">Set Key</button>
   <span id="connect-hint" style="display:none">
@@ -365,6 +365,7 @@ const DEVICE_FILTERS = [
   { usbVendorId: 0x239A, usbProductId: 0x8143 },  // QT Py ESP32-S3
   { usbVendorId: 0x239A, usbProductId: 0x8144 },  // QT Py ESP32-S3 (CDC)
   { usbVendorId: 0x303A, usbProductId: 0x1001 },  // ESP32-S3-Matrix (ESP32S3 Dev Module) / M5StickS3
+  { usbVendorId: 0x303A, usbProductId: 0x822B },  // Waveshare ESP32-S3-Zero board definition
 ];
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -555,7 +556,7 @@ function parseSerialLine(line, ts) {
 
   // ESP-NOW relay: keystroke from remote device
   if (line.startsWith('RELAY:')) {
-    const key = line.slice(6).trim();
+    const key = line.slice(6).trim().toLowerCase();   // older units relay upper case
     if (key.length === 1) {
       addPanelEvent(key, 'espnow', ts);
       flashDot('dot-espnow');
@@ -600,7 +601,7 @@ function parseSerialLine(line, ts) {
   }
 
   if (line.startsWith('CONFIG:key=')) {
-    const k = line.slice(11).trim().toUpperCase();
+    const k = line.slice(11).trim().toLowerCase();
     $('device-key').value = k;
     setDeviceKeyUI(true);
     log(`Device key: ${k}`, 'log-ok');
@@ -687,9 +688,9 @@ function setDeviceKeyUI(visible) {
 }
 
 async function setDeviceKey() {
-  const k = $('device-key').value.trim().toUpperCase();
-  if (!/^[A-Z0-9]$/.test(k)) {
-    log('Key must be a single letter (A-Z) or digit (0-9)', 'log-warn');
+  const k = $('device-key').value.trim().toLowerCase();
+  if (!/^[a-z0-9]$/.test(k)) {
+    log('Key must be a single letter (a-z) or digit (0-9)', 'log-warn');
     return;
   }
   log(`Setting device key to "${k}" — device will reboot to apply`, 'log-info');
@@ -698,7 +699,7 @@ async function setDeviceKey() {
 
 // Enforce single alphanumeric character in key input
 $('device-key').addEventListener('input', e => {
-  e.target.value = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(-1);
+  e.target.value = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().slice(-1);
 });
 
 $('btn-set-key').addEventListener('click', setDeviceKey);
@@ -796,9 +797,9 @@ async function disconnectAll() {
 // HID (keyboard) capture — accept any alphanumeric key from any device
 // ══════════════════════════════════════════════════════════════════════════
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT') return;
-  const key = e.key.toUpperCase();
-  if (!/^[A-Z0-9]$/.test(key)) return;
+  if (e.target.tagName === 'INPUT' || e.repeat) return;   // a held button auto-repeats on the host
+  const key = e.key.toLowerCase();
+  if (!/^[a-z0-9]$/.test(key)) return;
   e.preventDefault();
 
   const ts = performance.now();

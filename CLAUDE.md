@@ -1,39 +1,57 @@
-# ESP32-S3 Matrix Button — CLAUDE.md
+# USB Button — CLAUDE.md
 
-Port of `~/Sidetable/esp32s3-com-poc` (QT Py firmware) to the Waveshare ESP32-S3-Matrix.
-See README.md for user-facing behaviour, board settings and the status colour table.
+Branch `ws-esp32s3-matrix`: firmware for the Waveshare ESP32-S3-Matrix, kept in step with
+`ws-esp32s3-zero` (itself matching `qtpy-samd21`; originally a port of
+`~/Sidetable/esp32s3-com-poc`, the QT Py firmware).
+README.md is for end users (behaviour, key selection, lights). Board settings, compile-time
+flags and the Web Serial protocol are documented in the sketch header.
 
 ## Layout
 
 ```
-firmware/firmware.ino                 ← single-file Arduino sketch
-website/                              ← Web Serial browser app (only with WEB_SERIAL_ENABLED=1)
-resources/                            ← Waveshare schematic, datasheets, demo code (reference only)
-HARDWARE.md                           ← pinout, wiring, parts — keep in sync with pin #defines
+firmware/firmware.ino   ← single-file Arduino sketch
+website/                ← Web Serial browser app (only with WEB_SERIAL_ENABLED=1)
+resources/              ← schematic, datasheets, Waveshare demo code (reference only)
+README.md               ← for end users only: what it does, key selection, lights, hub power
+HARDWARE.md             ← only the pins and parts actually used — keep in sync with pin #defines
 ```
 
 ## Key facts
 
 - Pins (from resources/ESP32-S3-Matrix-Sch.pdf): BOOT button GPIO0 (only onboard user
-  button), WS2812B 8x8 matrix GPIO14, QMI8658 SDA 11 / SCL 12 / INT1 10 / INT2 13.
-- Buttons: external trigger on `TRIGGER_BTN_PIN` (GPIO1, to GND) sends the keystroke;
-  BOOT steps the key, committed (applied + one NVS write) 3 s after the last press —
-  no reboot, USB product name updates at next power-up.
-- External status LED on `STATUS_LED_PIN` (GPIO2, LEDC PWM → transistor → 5V LED):
-  idle soft pulse every 3 s, fast blink 3 s after a trigger press (`handleStatusLed()`).
+  button), WS2812B 8x8 matrix GPIO14, QMI8658 SDA 11 / SCL 12 / INT1 10 / INT2 13 (unused,
+  so GPIO13 is not free as on the Zero). The 5V pad is VBUS after a Schottky diode (≈ 4.7 V).
+- Buttons (polled every `BUTTON_POLL_MS` = 10 ms): external trigger on `TRIGGER_BTN_PIN`
+  (GPIO1, to GND) types the selected key. BOOT steps the key (a–z, 0–9), applies it at
+  once and types it via the same path (`keyPressed()` → `sendSelectedKey()`), then saves it
+  to NVS. The key is also saved at every boot. Default `'1'`. The USB product name updates
+  at next power-up.
+- Key set, behaviour and status colours are kept identical to the `ws-esp32s3-zero` and
+  `qtpy-samd21` branches: lower-case letters, no Shift; key down on press, up on release
+  (held = host auto-repeat). Change all branches together.
+- Matrix (`handleDisplay()` → `showStatus()`): the selected key drawn in the state colour,
+  replaced by white (delivered) / red (not delivered, `pressDelivered`) while a button is
+  held. Same colours as the Zero's RGB LED. `STATE_ERROR` (ESP-NOW init failure) blinks red
+  until reboot and is never left.
+- Matrix layout/colour order copied from Waveshare's Font demo
+  (`TOP+RIGHT+COLUMNS+PROGRESSIVE`, `NEO_GRB`). The Game demo uses `NEO_RGB`;
+  if colours or glyph orientation look wrong on hardware, adjust the `matrix(...)` flags.
+- Waveshare warns high LED brightness overheats the board — keep `MATRIX_BRIGHTNESS` low.
+- External status LED on `STATUS_LED_PIN` (GPIO2, LEDC PWM): idle continuous 3 s breathing,
+  fast blink while the trigger or BOOT is held (`handleStatusLed()`). The hardware is an NPN
+  emitter follower from 5V with **no resistors** (LED ≈ 2.6 V, self-limiting).
 - No VBUS sense pin. Host state is polled from TinyUSB in `handleHostEnumeration()`:
   `usbHostReady` = mounted && !suspended; `usbHostSeen` latches on first mount and is
   never cleared. Host sleep / unplug from a self-powered hub shows up as suspend, not unmount.
 - Hosted (`usbHostSeen`) → HID + ESP-NOW primary; own presses never go over ESP-NOW,
   even while the host is away. Never hosted → ESP-NOW remote (`sendKeystroke()`).
-- HID reports go through `HID.SendReport()` (`hidTap()` / `handleHidOutput()`), not
-  `Keyboard.press()`, which hides send failures. One tap at a time; the local trigger
-  preempts queued relay taps. Keep `loop()` order: host tracking, trigger, HID, then the rest.
-- `ESPNOW_MAGIC` stays "QTPY" for interoperability with QT Py units.
-- Matrix layout/colour order copied from Waveshare's Font demo
-  (`TOP+RIGHT+COLUMNS+PROGRESSIVE`, `NEO_GRB`). The Game demo uses `NEO_RGB`;
-  if colours or glyph orientation look wrong on hardware, adjust the `matrix(...)` flags.
-- Waveshare warns high LED brightness overheats the board — keep `MATRIX_BRIGHTNESS` low.
+- HID reports go through `HID.SendReport()` (`sendKeyReport()` / `hidPress()` /
+  `handleHidOutput()`), not `Keyboard.press()`, which hides send failures. One key at a
+  time: the local key is held while either button is down and cuts a relayed tap short;
+  relayed keystrokes (`HID_HOLD_MS` taps) queue behind it. ESP-NOW carries presses only,
+  so a remote's hold never repeats on the primary. Keep `loop()` order: host tracking,
+  trigger, HID, then the rest.
+- `ESPNOW_MAGIC` stays "QTPY" for interoperability with QT Py and Zero units.
 - WiFi power save is `WIFI_PS_NONE` (no battery; the primary must not miss relayed packets).
 
 ## Conventions
@@ -48,9 +66,14 @@ HARDWARE.md                           ← pinout, wiring, parts — keep in sync
 
 ## Build
 
+Needs the Adafruit NeoMatrix library (with Adafruit GFX + Adafruit NeoPixel).
+
 ```bash
 FQBN='esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,UploadMode=cdc,FlashSize=4M,PSRAM=enabled'
 arduino-cli compile -b "$FQBN" --build-property "tools.ctags.pattern=/usr/bin/true" firmware
 ```
+
+Web app (only with `WEB_SERIAL_ENABLED=1`): `python3 website/serve.py` opens Chrome at
+http://127.0.0.1:8080.
 
 Ask the user to do any physical hardware action (plugging in, pressing buttons).
