@@ -28,17 +28,17 @@ plugged into a computer, and that button types it.
 | Type | Basic | Advanced | Advanced |
 | USB keyboard (no drivers) | ✅ | ✅ | ✅ |
 | Wireless buttons | ❌ | ✅ | ✅ |
-| Selectable keys | 36: a–z, 0–9 | 36: a–z, 0–9 | 36: A–Z, 0–9 |
-| Letters typed as | lower case | lower case | upper case |
-| Default key | `1` | `1` | `Q` |
-| Holding the trigger repeats the key | ✅ | ✅ | ❌ single press |
-| Choosing the key | Select button; new key is typed straight away | BOOT button; new key is typed straight away | BOOT button; new key applies 3 s after the last press |
+| Selectable keys | 36: a–z, 0–9 | 36: a–z, 0–9 | 36: a–z, 0–9 |
+| Letters typed as | lower case | lower case | lower case |
+| Default key | `1` | `1` | `1` |
+| Holding the trigger repeats the key | ✅ | ✅ | ✅ |
+| Choosing the key | Select button; new key is typed straight away | BOOT button; new key is typed straight away | BOOT button; new key is typed straight away |
 | Shows the selected key | ❌ | ❌ | ✅ on the 8×8 LED display |
 | Status light | RGB LED | RGB LED | 8×8 LED display (key drawn in the status colour) |
-| Trigger light | Breathing; fast blink while held | Breathing; fast blink while held | Breathing; fast blink after a press |
+| Trigger light | Breathing; fast blink while held | Breathing; fast blink while held | Breathing; fast blink while held |
 
-The QT Py and Zero firmware behave the same way, apart from the Zero's wireless features.
-The Matrix firmware is the original version and has not been updated to match them.
+All three firmware versions behave the same way, apart from the Zero's and Matrix's
+wireless features and the Matrix's display.
 
 ## Hub power
 
