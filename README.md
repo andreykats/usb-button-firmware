@@ -1,4 +1,4 @@
-# USB Button
+# USB Button (Basic Type)
 
 A one-key USB keyboard. Plug it into a computer, press the trigger button, and the
 computer receives the selected key as if it were typed on a keyboard.
@@ -9,6 +9,12 @@ adapter.
 
 Holding the trigger works like holding a key on a keyboard: the computer starts
 repeating the key after a short delay.
+
+## Hardware requirements
+
+When using a powered USB hub, allow **2.5 W per button port** (5 V, 500 mA). The hub's
+power supply must cover every port in use: for example, a 10-port hub with a button on
+each port needs a power supply of at least **25 W**.
 
 ## Choosing the key
 
