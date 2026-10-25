@@ -32,10 +32,20 @@ The LED gets about 2.6 V (the pin's 3.3 V minus the transistor's 0.7 V), which a
 its current without resistors.
 
 ```
-"5V" ─── C
-          NPN 2N2222
-"MO" ─── B
-          E ── LED (anode → cathode) ── "GND"
+                "5V"
+                 │
+         ┌───────┴───────┐
+         │   Collector   │
+"MO" ────┤ Base          │  2N2222 (NPN)
+         │   Emitter     │
+         └───────┬───────┘
+                 │
+         ┌───────┴───────┐
+         │ LED + anode   │  long leg
+         │ LED − cathode │  short leg
+         └───────┬───────┘
+                 │
+               "GND"
 ```
 
 | Part | Value |
