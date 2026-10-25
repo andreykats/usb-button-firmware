@@ -1,4 +1,4 @@
-# USB Button (Wireless Type)
+# USB Button (Advanced Type)
 
 A one-key USB keyboard. Plug it into a computer, press the trigger button, and the
 computer receives the selected key as if it were typed on a keyboard.
