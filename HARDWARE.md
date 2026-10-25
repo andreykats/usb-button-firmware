@@ -35,9 +35,9 @@ its current without resistors.
                 "5V"
                  │
          ┌───────┴───────┐
-         │   Collector   │
-"MO" ────┤ Base          │  2N2222 (NPN)
-         │   Emitter     │
+         │  Collector    │
+"A10" ───┤ Base          │  2N2222 (NPN)
+         │  Emitter      │
          └───────┬───────┘
                  │
          ┌───────┴───────┐
