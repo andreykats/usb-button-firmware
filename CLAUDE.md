@@ -6,7 +6,7 @@ See README.md for user-facing behaviour, board settings and the status colour ta
 ## Layout
 
 ```
-matrix-firmware/matrix-firmware.ino   ← single-file Arduino sketch
+firmware/firmware.ino                 ← single-file Arduino sketch
 website/                              ← Web Serial browser app (only with WEB_SERIAL_ENABLED=1)
 resources/                            ← Waveshare schematic, datasheets, demo code (reference only)
 HARDWARE.md                           ← pinout, wiring, parts — keep in sync with pin #defines
@@ -50,7 +50,7 @@ HARDWARE.md                           ← pinout, wiring, parts — keep in sync
 
 ```bash
 FQBN='esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,UploadMode=cdc,FlashSize=4M,PSRAM=enabled'
-arduino-cli compile -b "$FQBN" --build-property "tools.ctags.pattern=/usr/bin/true" matrix-firmware
+arduino-cli compile -b "$FQBN" --build-property "tools.ctags.pattern=/usr/bin/true" firmware
 ```
 
 Ask the user to do any physical hardware action (plugging in, pressing buttons).

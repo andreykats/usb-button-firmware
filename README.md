@@ -59,13 +59,13 @@ by holding BOOT and tapping RESET to enter download mode.
 **Libraries:** `Adafruit NeoMatrix` (pulls in Adafruit GFX + Adafruit NeoPixel).
 WiFi mode additionally needs the ESP32Async forks of `ESPAsyncWebServer` and `AsyncTCP`.
 
-Open `matrix-firmware/matrix-firmware.ino` and upload.
+Open `firmware/firmware.ino` and upload.
 
 ### Command line
 
 ```bash
-arduino-cli compile -b 'esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,UploadMode=cdc,FlashSize=4M,PSRAM=enabled' matrix-firmware
-arduino-cli upload  -b 'esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,UploadMode=cdc,FlashSize=4M,PSRAM=enabled' -p <port> matrix-firmware
+arduino-cli compile -b 'esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,UploadMode=cdc,FlashSize=4M,PSRAM=enabled' firmware
+arduino-cli upload  -b 'esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,UploadMode=cdc,FlashSize=4M,PSRAM=enabled' -p <port> firmware
 ```
 
 On Apple Silicon without Rosetta, the Arduino-bundled `ctags` (x86_64 only) fails with
