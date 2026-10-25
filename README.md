@@ -1,47 +1,37 @@
 # USB Button
 
-A one-key USB keyboard on an [Adafruit QT Py SAMD21](https://learn.adafruit.com/adafruit-qt-py).
-Press the trigger button and the computer receives the selected key, as if it were typed
-on a keyboard. No drivers or software are needed on the computer.
+A one-key USB keyboard. Plug it into a computer, press the trigger button, and the
+computer receives the selected key as if it were typed on a keyboard. No drivers or
+software are needed.
 
-## How it works
+Holding the trigger works like holding a key on a keyboard: the computer starts
+repeating the key after a short delay.
 
-| Button | Pin | What it does |
-|---|---|---|
-| Trigger | A3 | Types the selected key. The key goes down on press and up on release, so holding the button makes the computer repeat the key. |
-| Select | A0 | Steps to the next key (a–z, then 0–9) and types it straight away so you can see it. |
+## Choosing the key
 
-- Letters type lower case. The default key is `1`.
-- The selected key is saved to flash, so it survives unplugging.
-- Both buttons are read every 10 ms.
+There are 36 keys to choose from: the letters a–z (typed in lower case) and the digits
+0–9. The default key is `1`.
 
-## Status lights
+Press the select button to step to the next key: a, b, c … z, then 0, 1 … 9, then back
+to a. Each press types the new key straight away, so you can see which one is selected
+in any text field. The button remembers its key when unplugged.
 
-**Onboard NeoPixel**
+## Lights
 
-| Colour | Meaning |
+**Status light (on the board)**
+
+| Light | Meaning |
 |---|---|
-| Yellow, fast blink | Starting up: waiting for a computer (up to 4 s) |
-| Green, solid | Computer connected |
-| Green, blinking | No computer: power only, or the computer is asleep or unplugged |
-| Red, blinking | Error: saving the key to flash failed (reboot to clear) |
-| White while held | The key press was delivered |
-| Red while held | The key press could not be delivered |
+| Yellow, fast blink | Starting up (a few seconds after plugging in) |
+| Green, solid | Connected to a computer and ready |
+| Green, blinking | No computer: plugged into a charger, or the computer is asleep or unplugged |
+| Red, blinking | Fault: unplug and plug back in |
+| White while a button is held | The key press reached the computer |
+| Red while a button is held | The key press could not be delivered |
 
-**External LED (A10):** breathes slowly (one fade every 3 s) when idle, and blinks fast
-while a button is held.
+**Trigger light**
 
-## Hardware
-
-See [HARDWARE.md](HARDWARE.md) for the pins and wiring.
-
-## Building
-
-Open `firmware/firmware.ino` in the Arduino IDE and upload with:
-
-- **Board:** Adafruit QT Py M0 (SAMD21), from the Adafruit SAMD boards package
-- **USB Stack:** Arduino
-- **Libraries:** Adafruit NeoPixel, FlashStorage, Keyboard
-
-If the upload fails, double-tap the board's RST button. A `QTPY_BOOT` drive appears and
-the upload can be retried.
+| Light | Meaning |
+|---|---|
+| Slow breathing | Ready |
+| Fast blinking | A button is being held |
