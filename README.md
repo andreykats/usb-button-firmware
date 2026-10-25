@@ -27,7 +27,7 @@ plugged into a computer, and that button types it.
 |---|---|---|---|
 | Type | Basic | Advanced | Advanced |
 | USB keyboard (no drivers) | ✅ | ✅ | ✅ |
-| Wireless buttons | ❌ | ✅ | ✅ |
+| Mesh network | ❌ | ✅ | ✅ |
 | Selectable keys | 36: a–z, 0–9 | 36: a–z, 0–9 | 36: a–z, 0–9 |
 | Letters typed as | lower case | lower case | lower case |
 | Default key | `1` | `1` | `1` |
