@@ -1,8 +1,11 @@
 # USB Button
 
 A one-key USB keyboard. Plug it into a computer, press the trigger button, and the
-computer receives the selected key as if it were typed on a keyboard. No drivers or
-software are needed.
+computer receives the selected key as if it were typed on a keyboard.
+
+It is a standard USB HID keyboard, so it works on macOS, Windows, Linux, iOS/iPadOS and
+Android with no drivers or software. Phones and tablets need a USB-C port or a USB
+adapter.
 
 Holding the trigger works like holding a key on a keyboard: the computer starts
 repeating the key after a short delay.
