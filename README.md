@@ -31,8 +31,8 @@ Web Serial and WiFi/WebSocket are **disabled by default** (compile-time flags, b
 ## Hardware
 
 - **Board**: Waveshare ESP32-S3-Zero — ESP32-S3FH4R2 (4 MB flash, 2 MB quad PSRAM)
-- **Trigger button**: external, GPIO1 → GND
-- **Status LED**: external, transistor-switched 5 V, driven from GPIO2 (PWM)
+- **Trigger button**: external, GPIO13 → GND
+- **Status LED**: external, transistor-switched 5 V, driven from GPIO1 (PWM)
 - **Key button**: onboard BOOT (GPIO0)
 - **Status display**: onboard WS2812B RGB LED on GPIO21
 
@@ -109,8 +109,8 @@ The USB product name (`Zero Remote [Q]`) updates at the next power-up. With
 | Blue, solid | Power only, connected to the mesh through a primary |
 | Blue, blinking | Power only, looking for a primary |
 | Red, blinking | Error (ESP-NOW failed to start) — reboot to clear |
-| White flash | Button press delivered (trigger or BOOT) |
-| Red flash | Button press not delivered (power only with no primary, or computer asleep/unplugged) |
+| White flash | Button press delivered (trigger or BOOT); stays white while the trigger is held |
+| Red flash | Button press not delivered (power only with no primary, or computer asleep/unplugged); stays red while the trigger is held |
 
 WiFi-mode colours are listed in the sketch header.
 

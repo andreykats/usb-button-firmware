@@ -7,15 +7,15 @@ external trigger button and a transistor-driven status LED.
 
 | Function | GPIO | Header pad | Notes |
 |---|---|---|---|
-| Trigger button | **GPIO1** | left side, "1" | Button to GND, internal pull-up (`TRIGGER_BTN_PIN`) |
-| Status LED drive | **GPIO2** | left side, "2" | PWM to the transistor base/gate (`STATUS_LED_PIN`) |
+| Trigger button | **GPIO13** | right side, "13" | Button to GND, internal pull-up (`TRIGGER_BTN_PIN`) |
+| Status LED drive | **GPIO1** | left side, "1" | PWM to the transistor base/gate (`STATUS_LED_PIN`) |
 | 5 V (LED supply) | — | left side, "5V" | USB VBUS directly — no diode, ≈ 5.0 V |
 | GND | — | left side, "GND" | Button and transistor emitter/source |
 | Key select | GPIO0 | — | Onboard **BOOT** button, nothing to wire |
 | RGB status LED | GPIO21 | — | Onboard WS2812B, RGB colour order (`STATUS_RGB_PIN`) |
 
-5V, GND, 3V3, GPIO1 and GPIO2 are the top five pads of the left header, so all the
-wiring lands in one corner.
+The LED stage uses the top pads of the left header (5V, GND, GPIO1). The trigger is on
+pad 13, the third pad of the right header, directly opposite 3V3.
 
 ## Header layout (from the schematic and Waveshare pinout)
 
@@ -25,9 +25,9 @@ Top view, USB-C at the top:
 |---|---|---|
 | 5V | | TX (GPIO43, via 499 Ω) |
 | GND | | RX (GPIO44) |
-| 3V3 (out) | | 13 |
-| **1 — trigger** | | 12 |
-| **2 — status LED** | | 11 |
+| 3V3 (out) | | **13 — trigger** |
+| **1 — status LED** | | 12 |
+| 2 | | 11 |
 | 3 | | 10 |
 | 4 | | 9 |
 | 5 | | 8 |
@@ -50,13 +50,13 @@ not broken out.
 ## Trigger button
 
 ```
-"1" (GPIO1) ──── button ──── GND
+"13" (GPIO13) ──── button ──── GND
 ```
 
 - **Part:** any normally-open momentary switch, e.g. a 6 / 12 mm tactile switch, a
   panel-mount pushbutton, or a 24 / 30 mm arcade button.
 - **Resistors:** none needed. The firmware enables the internal pull-up and debounces for 50 ms.
-- **Long leads (over about 30 cm):** add a 10 kΩ pull-up from GPIO1 to 3V3 for better noise immunity.
+- **Long leads (over about 30 cm):** add a 10 kΩ pull-up from GPIO13 to 3V3 for better noise immunity.
 
 ## Status LED
 
@@ -66,7 +66,7 @@ The GPIO can't drive a 5 V LED directly, so a transistor switches the LED's grou
 ```
 5V ── 68 Ω ── LED (anode → cathode) ── C
                                         NPN 2N2222
-"2" (GPIO2) ── 1 kΩ ──┬─────────────── B
+"1" (GPIO1) ── 1 kΩ ──┬─────────────── B
                       │
                     10 kΩ
                       │
@@ -81,7 +81,7 @@ GND ──────────────────┴──────�
 | LED | **White 5 mm water-clear**, Vf 3.0–3.4 V, 60 000 mcd, 30°, 320 mW max | See current notes below. |
 | LED resistor | **68 Ω**, ¼ W (≈ 25 mA) | **Required.** The Matrix build used 47 Ω; see below. |
 | Base resistor | **1 kΩ** | About 2.6 mA base current. Saturates the transistor up to about 30 mA. |
-| Base pull-down | **10 kΩ**, base to GND | Keeps the LED off while GPIO2 floats during boot and flashing. |
+| Base pull-down | **10 kΩ**, base to GND | Keeps the LED off while GPIO1 floats during boot and flashing. |
 
 **Why 68 Ω, not 47 Ω.** On the ESP32-S3-Matrix the 5 V pin sits behind a Schottky diode
 (≈ 4.7 V). On the Zero, the 5V pad is USB VBUS directly: ≈ 5.0 V, and up to 5.25 V on some
@@ -110,7 +110,7 @@ Other LEDs: `R_led = (5.0 V − LED Vf − 0.1 V) / current`.
 
 A logic-level N-channel MOSFET is wired the same way:
 - **Parts:** AO3400A or IRLML2502 (SOT-23).
-- **Gate:** 100 Ω from GPIO2.
+- **Gate:** 100 Ω from GPIO1.
 - **Gate pull-down:** 100 kΩ gate to GND.
 - **Source:** to GND.
 - **Drain:** to the LED cathode.
@@ -121,8 +121,8 @@ If you build a high-side stage instead (PNP or P-MOSFET, LED on when the GPIO is
 
 ### LED behaviour
 
-- **Idle:** soft fade in and out every 3 s.
-- **After a trigger press:** blinks fast (5 Hz) for 3 s.
+- **Idle:** continuous breathing, one fade in and out every 3 s, no dark pause.
+- **While the trigger or BOOT is held:** blinks fast (10 Hz); back to breathing on release.
 - **Tuning:** adjust the `LED_*` constants at the top of the sketch.
 
 ## Onboard RGB LED

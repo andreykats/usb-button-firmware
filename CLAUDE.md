@@ -19,15 +19,15 @@ HARDWARE.md             ← pinout, wiring, parts — keep in sync with pin #def
 - Pins (from resources/ESP32-S3-Zero-Sch.pdf): BOOT button GPIO0 (only onboard user
   button), WS2812B RGB LED GPIO21 in **RGB** colour order (`STATUS_RGB_ORDER`). The 5V pad
   is VBUS directly (no diode, unlike the Matrix).
-- Buttons: external trigger on `TRIGGER_BTN_PIN` (GPIO1, to GND) types the selected key.
+- Buttons: external trigger on `TRIGGER_BTN_PIN` (GPIO13, to GND) types the selected key.
   BOOT steps the key, applies it at once and types it via the same path
   (`keyPressed()` → `sendSelectedKey()`); the NVS write happens 3 s after the last press.
   The USB product name updates at next power-up.
 - RGB LED (`handleStatusRgb()`): state colour, overlaid by a short white (delivered) /
-  red (not delivered) flash after each press (`flashStatus()`). `STATE_ERROR` (ESP-NOW
+  red (not delivered) flash after each press (`flashStatus()`), held while the trigger is down. `STATE_ERROR` (ESP-NOW
   init failure) blinks red until reboot and is never left.
-- External status LED on `STATUS_LED_PIN` (GPIO2, LEDC PWM → transistor → 5V LED):
-  idle soft pulse every 3 s, fast blink 3 s after a trigger press (`handleStatusLed()`).
+- External status LED on `STATUS_LED_PIN` (GPIO1, LEDC PWM → transistor → 5V LED):
+  idle continuous 3 s breathing, fast blink while the trigger or BOOT is held (`handleStatusLed()`).
 - No VBUS sense pin. Host state is polled from TinyUSB in `handleHostEnumeration()`:
   `usbHostReady` = mounted && !suspended; `usbHostSeen` latches on first mount and is
   never cleared. Host sleep / unplug from a self-powered hub shows up as suspend, not unmount.

@@ -21,15 +21,16 @@
  *   - WIFI_ENABLED=1       — WebSocket over WiFi + encrypted ESP-NOW credential
  *     sharing. Replaces the ESP-NOW keystroke relay (the two are exclusive).
  *
- * BUTTONS (every press flashes the RGB LED white if the key was delivered, red if not):
+ * BUTTONS (every press flashes the RGB LED white if the key was delivered, red if not;
+ *          the trigger holds that colour for as long as it is held down):
  *   - Trigger (external, TRIGGER_BTN_PIN → GND) — types the selected key.
  *   - BOOT (GPIO0) — steps to the next key (A–Z, 0–9), applies it at once and
  *     types it. Saved to NVS 3 s after the last press. The USB product name
  *     ("Zero Remote [X]") updates at the next power-up.
  *
  * STATUS LED (external, STATUS_LED_PIN → transistor switching 5V to an LED):
- *   - Idle: one soft fade-in/fade-out pulse every LED_IDLE_PERIOD_MS.
- *   - Trigger pressed: fast blinking for LED_FAST_DURATION_MS, then back to idle.
+ *   - Idle: continuous breathing, one fade-in/fade-out per LED_IDLE_PERIOD_MS.
+ *   - Trigger or BOOT held: fast blinking for as long as it is held, then back to idle.
  *
  * REQUIRED LIBRARIES (install via Arduino Library Manager):
  *   - None for the default build.
@@ -54,8 +55,8 @@
  *
  * HARDWARE PINS (from ESP32-S3-Zero schematic, resources/):
  *   GPIO 0   — BOOT button (active LOW, 10K external pull-up) — key select
- *   GPIO 1   — trigger button (external, to GND, internal pull-up) — TRIGGER_BTN_PIN
- *   GPIO 2   — status LED transistor drive (PWM, HIGH = LED on)    — STATUS_LED_PIN
+ *   GPIO 1   — status LED transistor drive (PWM, HIGH = LED on)    — STATUS_LED_PIN
+ *   GPIO 13  — trigger button (external, to GND, internal pull-up) — TRIGGER_BTN_PIN
  *   GPIO 21  — onboard WS2812B RGB LED data (RGB colour order)     — STATUS_RGB_PIN
  *   There is no VBUS sense pin: host vs. power-only is detected by USB
  *   enumeration.
@@ -167,9 +168,9 @@ USBHIDKeyboard Keyboard;
 USBHID         HID;
 
 // ─── Hardware ──────────────────────────────────────────────────────────────
-// Trigger: external momentary switch between this pin and GND. GPIO1 is a header
+// Trigger: external momentary switch between this pin and GND. GPIO13 is a header
 // pin with no strapping/USB/LED role; avoid strapping pins 0, 3, 45, 46.
-#define TRIGGER_BTN_PIN  1    // Active LOW, internal pull-up
+#define TRIGGER_BTN_PIN  13   // Active LOW, internal pull-up
 #define KEY_BTN_PIN      0    // BOOT (K2), active LOW, 10K external pull-up
 #define DEBOUNCE_MS      50
 const unsigned long KEY_SAVE_DELAY_MS = 3000;  // save to NVS this long after the last BOOT press
@@ -177,15 +178,13 @@ const unsigned long KEY_SAVE_DELAY_MS = 3000;  // save to NVS this long after th
 // ─── External status LED (transistor-switched 5V) ──────────────────────────
 // GPIO drives the transistor base/gate; HIGH = LED on (low-side NPN / N-MOSFET).
 // Set STATUS_LED_INVERT 1 for a high-side PNP / P-MOSFET stage (LOW = LED on).
-#define STATUS_LED_PIN     2
+#define STATUS_LED_PIN     1
 #define STATUS_LED_INVERT  0
 const uint32_t      STATUS_LED_PWM_HZ    = 5000;
 const uint8_t       STATUS_LED_PWM_BITS  = 10;
 const uint32_t      STATUS_LED_MAX_DUTY  = (1UL << STATUS_LED_PWM_BITS) - 1;
-const unsigned long LED_IDLE_PERIOD_MS   = 3000;  // one pulse every 3 s while idle
-const unsigned long LED_IDLE_PULSE_MS    = 1200;  // fade up + down duration of that pulse
-const unsigned long LED_FAST_DURATION_MS = 3000;  // fast pulsing after a trigger press
-const unsigned long LED_FAST_PERIOD_MS   = 200;   // 100 ms on / 100 ms off
+const unsigned long LED_IDLE_PERIOD_MS   = 3000;  // one breath (fade up + down) every 3 s while idle
+const unsigned long LED_FAST_PERIOD_MS   = 100;   // while the trigger is held: 50 ms on / 50 ms off (10 Hz)
 
 // ─── Onboard RGB status LED (WS2812B) ──────────────────────────────────────
 // Driven by the core's rgbLedWriteOrdered() (RMT). The S3-Zero's LED takes RGB
@@ -194,7 +193,7 @@ const unsigned long LED_FAST_PERIOD_MS   = 200;   // 100 ms on / 100 ms off
 #define STATUS_RGB_PIN         21
 #define STATUS_RGB_ORDER       LED_COLOR_ORDER_RGB
 #define STATUS_RGB_BRIGHTNESS  40     // 0–255 scale applied to every colour
-const unsigned long RGB_FLASH_MS = 120;  // white/red press-feedback flash
+const unsigned long RGB_FLASH_MS = 120;  // white/red press-feedback flash (minimum; held while the trigger is down)
 
 // ─── WebSocket server (only for WiFi mode) ─────────────────────────────────
 #if WIFI_ENABLED
@@ -226,9 +225,16 @@ char           savedHidKey   = 'Q';   // value currently in NVS
 Preferences    prefs;
 
 // ─── Globals ───────────────────────────────────────────────────────────────
-// Button
-unsigned long lastBtnTime    = 0;
-bool          btnWasPressed  = false;
+// Buttons (active LOW). See updateButton().
+struct DebouncedButton {
+  uint8_t       pin;
+  bool          pressed;      // debounced state
+  unsigned long lastEdgeMs;   // time of the last accepted press or release
+};
+enum ButtonEdge { BTN_NONE, BTN_PRESSED, BTN_RELEASED };
+
+DebouncedButton triggerBtn   = { TRIGGER_BTN_PIN, false, 0 };
+DebouncedButton keyBtn       = { KEY_BTN_PIN,     false, 0 };
 int           seqCounter     = 0;
 bool          pendingPress   = false;   // trigger/BOOT press during the boot USB wait; sent once the path is known
 
@@ -239,8 +245,6 @@ const int     RELAY_TAP_QUEUE_LEN = 8;
 char          relayTapQueue[RELAY_TAP_QUEUE_LEN];
 int           relayTapHead   = 0;
 int           relayTapCount  = 0;
-unsigned long lastKeyBtnTime = 0;
-bool          keyBtnWasPressed = false;
 
 // Status LED
 bool          statusLedReady   = false;
@@ -306,7 +310,8 @@ void showStatus(RGB c) {
   rgbLedWriteOrdered(STATUS_RGB_PIN, STATUS_RGB_ORDER, r, g, b);
 }
 
-// Brief white (delivered) or red (not delivered) flash over the status colour.
+// White (delivered) or red (not delivered) flash over the status colour, for
+// RGB_FLASH_MS or as long as the trigger is held, whichever is longer.
 void flashStatus(bool delivered) {
   rgbFlashActive  = true;
   rgbFlashOk      = delivered;
@@ -1061,7 +1066,7 @@ void handleStatusRgb() {
 
   // Button press feedback: white = delivered, red = nowhere to go
   if (rgbFlashActive) {
-    if (now - rgbFlashStartMs < RGB_FLASH_MS) {
+    if (triggerBtn.pressed || now - rgbFlashStartMs < RGB_FLASH_MS) {
       showStatus(rgbFlashOk ? COLOR_WHITE : COLOR_RED);
       return;
     }
@@ -1395,81 +1400,66 @@ void initStatusLed() {
   writeStatusLed(0);
 }
 
-// Called on every trigger press; a press during fast mode restarts its timer.
-void startStatusLedFast() {
-  ledFastActive   = true;
-  ledPhaseStartMs = millis();
-}
-
+// Fast blink while the trigger or BOOT is held, idle breathing otherwise. Each
+// switch restarts the cycle, so the blink starts lit and the breathing starts dark.
 void handleStatusLed() {
   if (!statusLedReady) return;
   unsigned long now = millis();
 
+  bool fast = triggerBtn.pressed || keyBtn.pressed;
+  if (fast != ledFastActive) {
+    ledFastActive   = fast;
+    ledPhaseStartMs = now;
+  }
+  unsigned long t = now - ledPhaseStartMs;
+
   if (ledFastActive) {
-    unsigned long t = now - ledPhaseStartMs;
-    if (t < LED_FAST_DURATION_MS) {
-      writeStatusLed((t % LED_FAST_PERIOD_MS) < LED_FAST_PERIOD_MS / 2 ? STATUS_LED_MAX_DUTY : 0);
-      return;
-    }
-    ledFastActive   = false;
-    ledPhaseStartMs = now;   // restart the idle cycle from a dark phase
+    writeStatusLed((t % LED_FAST_PERIOD_MS) < LED_FAST_PERIOD_MS / 2 ? STATUS_LED_MAX_DUTY : 0);
+    return;
   }
 
-  // Idle: triangle fade over LED_IDLE_PULSE_MS, squared for perceptually even
-  // brightness, then dark for the rest of LED_IDLE_PERIOD_MS.
-  unsigned long t = (now - ledPhaseStartMs) % LED_IDLE_PERIOD_MS;
-  uint32_t duty = 0;
-  if (t < LED_IDLE_PULSE_MS) {
-    float x   = (float)t / LED_IDLE_PULSE_MS;
-    float tri = 1.0f - fabsf(2.0f * x - 1.0f);
-    duty = (uint32_t)(tri * tri * STATUS_LED_MAX_DUTY);
-  }
-  writeStatusLed(duty);
+  // Idle: raised-cosine breathing over the whole LED_IDLE_PERIOD_MS (no dark
+  // pause), squared for perceptually even brightness. Starts dark.
+  float x      = (float)(t % LED_IDLE_PERIOD_MS) / LED_IDLE_PERIOD_MS;
+  float breath = 0.5f - 0.5f * cosf(2.0f * PI * x);
+  writeStatusLed((uint32_t)(breath * breath * STATUS_LED_MAX_DUTY));
 }
 
-// ─── Trigger button (50ms debounce) ────────────────────────────────────────
-// Keystroke fires on press for lowest latency.
+// ─── Button debounce (edge lockout) ────────────────────────────────────────
+// A press or release is acted on at once (lowest latency), then the pin is
+// ignored for DEBOUNCE_MS so contact bounce on either edge can't register as
+// another edge.
+ButtonEdge updateButton(DebouncedButton &btn, unsigned long now) {
+  if (now - btn.lastEdgeMs < DEBOUNCE_MS) return BTN_NONE;
+  bool down = digitalRead(btn.pin) == LOW;
+  if (down == btn.pressed) return BTN_NONE;
+  btn.pressed    = down;
+  btn.lastEdgeMs = now;
+  return down ? BTN_PRESSED : BTN_RELEASED;
+}
+
+// ─── Trigger button ────────────────────────────────────────────────────────
+// Keystroke fires on press; handleStatusLed() blinks fast until release.
 void handleTriggerButton() {
-  bool rawReading  = digitalRead(TRIGGER_BTN_PIN);
-  unsigned long now = millis();
-
-  if (rawReading == LOW && !btnWasPressed) {
-    if (now - lastBtnTime >= DEBOUNCE_MS) {
-      lastBtnTime   = now;
-      btnWasPressed = true;
-      keyPressed();
-      startStatusLedFast();
-    }
-  } else if (rawReading == HIGH && btnWasPressed) {
-    lastBtnTime   = now;
-    btnWasPressed = false;
-  }
+  if (updateButton(triggerBtn, millis()) == BTN_PRESSED) keyPressed();
 }
 
-// ─── BOOT button: key selection (50ms debounce) ────────────────────────────
+// ─── BOOT button: key selection ────────────────────────────────────────────
 // Each press steps to the next key, applies it at once and types it like a
 // trigger press. The key is saved KEY_SAVE_DELAY_MS after the last press.
 void handleKeyButton() {
-  bool rawReading  = digitalRead(KEY_BTN_PIN);
   unsigned long now = millis();
 
-  if (rawReading == LOW && !keyBtnWasPressed) {
-    if (now - lastKeyBtnTime >= DEBOUNCE_MS) {
-      lastKeyBtnTime   = now;
-      keyBtnWasPressed = true;
-      hidKey           = nextKeyChar(hidKey);
-      keySavePending   = true;
-      keyLastStepMs    = now;
-      LOG_PRINTF("LOG:KEYSEL key=%c ts=%lu\n", hidKey, now);
-      PROTO_PRINTF("CONFIG:key=%c\n", hidKey);
-      keyPressed();
-    }
-  } else if (rawReading == HIGH && keyBtnWasPressed) {
-    lastKeyBtnTime   = now;
-    keyBtnWasPressed = false;
+  if (updateButton(keyBtn, now) == BTN_PRESSED) {
+    hidKey         = nextKeyChar(hidKey);
+    keySavePending = true;
+    keyLastStepMs  = now;
+    LOG_PRINTF("LOG:KEYSEL key=%c ts=%lu\n", hidKey, now);
+    PROTO_PRINTF("CONFIG:key=%c\n", hidKey);
+    keyPressed();
   }
 
-  if (keySavePending && !keyBtnWasPressed && now - keyLastStepMs >= KEY_SAVE_DELAY_MS) {
+  if (keySavePending && !keyBtn.pressed && now - keyLastStepMs >= KEY_SAVE_DELAY_MS) {
     saveHidKey();
   }
 }
