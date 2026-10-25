@@ -22,16 +22,16 @@ in any text field. The button remembers its key when unplugged.
 
 | Light | Meaning |
 |---|---|
-| Yellow, fast blink | Starting up (a few seconds after plugging in) |
-| Green, solid | Connected to a computer and ready |
-| Green, blinking | No computer: plugged into a charger, or the computer is asleep or unplugged |
-| Red, blinking | Fault: unplug and plug back in |
-| White while a button is held | The key press reached the computer |
-| Red while a button is held | The key press could not be delivered |
+| 🟡 Yellow, fast blink | Starting up (a few seconds after plugging in) |
+| 🟢 Green, solid | Connected to a computer and ready |
+| 🟢 Green, blinking | No computer: plugged into a charger, or the computer is asleep or unplugged |
+| 🔴 Red, blinking | Fault: unplug and plug back in |
+| ⚪ White while a button is held | The key press reached the computer |
+| 🔴 Red while a button is held | The key press could not be delivered |
 
 **Trigger light**
 
 | Light | Meaning |
 |---|---|
-| Slow breathing | Ready |
-| Fast blinking | A button is being held |
+| ⚪ Slow breathing | Ready |
+| ⚪ Fast blinking | A button is being held |
