@@ -12,7 +12,8 @@ flags and the Web Serial protocol are documented in the sketch header.
 firmware/firmware.ino   ← single-file Arduino sketch
 website/                ← Web Serial browser app (only with WEB_SERIAL_ENABLED=1)
 resources/              ← schematics, pinout, datasheets, Waveshare demo code (reference only)
-HARDWARE.md             ← pinout, wiring, parts — keep in sync with pin #defines
+README.md               ← for end users only: what it does, key selection, lights, hub power
+HARDWARE.md             ← only the pins and parts actually used — keep in sync with pin #defines
 ```
 
 ## Key facts
@@ -25,13 +26,15 @@ HARDWARE.md             ← pinout, wiring, parts — keep in sync with pin #def
   once and types it via the same path (`keyPressed()` → `sendSelectedKey()`), then saves it
   to NVS. The key is also saved at every boot. Default `'1'`. The USB product name updates
   at next power-up.
-- Key set and behaviour are kept identical to the `qtpy-samd21` branch: lower-case
-  letters, no Shift; key down on press, up on release (held = host auto-repeat).
+- Key set, behaviour and status colours are kept identical to the `qtpy-samd21` branch:
+  lower-case letters, no Shift; key down on press, up on release (held = host auto-repeat).
+  Change both branches together.
 - RGB LED (`handleStatusRgb()`, full brightness): state colour, replaced by white
   (delivered) / red (not delivered, `pressDelivered`) while a button is held. Never shows
   the selected key. `STATE_ERROR` (ESP-NOW init failure) blinks red until reboot and is never left.
-- External status LED on `STATUS_LED_PIN` (GPIO1, LEDC PWM → transistor → 5V LED):
-  idle continuous 3 s breathing, fast blink while the trigger or BOOT is held (`handleStatusLed()`).
+- External status LED on `STATUS_LED_PIN` (GPIO1, LEDC PWM): idle continuous 3 s breathing,
+  fast blink while the trigger or BOOT is held (`handleStatusLed()`). The hardware is an NPN
+  emitter follower from 5V with **no resistors** (LED ≈ 2.6 V, self-limiting).
 - No VBUS sense pin. Host state is polled from TinyUSB in `handleHostEnumeration()`:
   `usbHostReady` = mounted && !suspended; `usbHostSeen` latches on first mount and is
   never cleared. Host sleep / unplug from a self-powered hub shows up as suspend, not unmount.
