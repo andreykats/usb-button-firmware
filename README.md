@@ -13,9 +13,9 @@ wiring.
 
 | Branch | Board | Type |
 |---|---|---|
+| [`qtpy-samd21`](https://github.com/andreykats/usb-button/tree/qtpy-samd21) | [Adafruit QT Py SAMD21](https://learn.adafruit.com/adafruit-qt-py) | Basic |
 | [`ws-esp32s3-zero`](https://github.com/andreykats/usb-button/tree/ws-esp32s3-zero) | [Waveshare ESP32-S3-Zero](https://docs.waveshare.com/ESP32-S3-Zero) | Advanced |
 | [`ws-esp32s3-matrix`](https://github.com/andreykats/usb-button/tree/ws-esp32s3-matrix) | [Waveshare ESP32-S3-Matrix](https://docs.waveshare.com/ESP32-S3-Matrix) | Advanced |
-| [`qtpy-samd21`](https://github.com/andreykats/usb-button/tree/qtpy-samd21) | [Adafruit QT Py SAMD21](https://learn.adafruit.com/adafruit-qt-py) | Basic |
 
 **Basic** buttons only work plugged into a computer. **Advanced** buttons can also work
 wirelessly: plugged into a charger, they send their key to a nearby button that is
@@ -23,21 +23,21 @@ plugged into a computer, and that button types it.
 
 ## Feature comparison
 
-| Feature | ESP32-S3-Zero | ESP32-S3-Matrix | QT Py SAMD21 |
+| Feature | QT Py SAMD21 | ESP32-S3-Zero | ESP32-S3-Matrix |
 |---|---|---|---|
-| Type | Advanced | Advanced | Basic |
+| Type | Basic | Advanced | Advanced |
 | USB keyboard (no drivers) | ✅ | ✅ | ✅ |
-| Wireless buttons | ✅ | ✅ | ❌ |
-| Selectable keys | 36: a–z, 0–9 | 36: A–Z, 0–9 | 36: a–z, 0–9 |
-| Letters typed as | lower case | upper case | lower case |
-| Default key | `1` | `Q` | `1` |
-| Holding the trigger repeats the key | ✅ | ❌ single press | ✅ |
-| Choosing the key | BOOT button; new key is typed straight away | BOOT button; new key applies 3 s after the last press | Select button; new key is typed straight away |
-| Shows the selected key | ❌ | ✅ on the 8×8 LED display | ❌ |
-| Status light | RGB LED | 8×8 LED display (key drawn in the status colour) | RGB LED |
-| Trigger light | Breathing; fast blink while held | Breathing; fast blink after a press | Breathing; fast blink while held |
+| Wireless buttons | ❌ | ✅ | ✅ |
+| Selectable keys | 36: a–z, 0–9 | 36: a–z, 0–9 | 36: A–Z, 0–9 |
+| Letters typed as | lower case | lower case | upper case |
+| Default key | `1` | `1` | `Q` |
+| Holding the trigger repeats the key | ✅ | ✅ | ❌ single press |
+| Choosing the key | Select button; new key is typed straight away | BOOT button; new key is typed straight away | BOOT button; new key applies 3 s after the last press |
+| Shows the selected key | ❌ | ❌ | ✅ on the 8×8 LED display |
+| Status light | RGB LED | RGB LED | 8×8 LED display (key drawn in the status colour) |
+| Trigger light | Breathing; fast blink while held | Breathing; fast blink while held | Breathing; fast blink after a press |
 
-The Zero and QT Py firmware behave the same way, apart from the Zero's wireless features.
+The QT Py and Zero firmware behave the same way, apart from the Zero's wireless features.
 The Matrix firmware is the original version and has not been updated to match them.
 
 ## Hub power
