@@ -3,7 +3,8 @@
 Branch `ws-esp32s3-zero`: port of the `main` branch firmware (Waveshare ESP32-S3-Matrix,
 itself a port of `~/Sidetable/esp32s3-com-poc`, the QT Py firmware) to the
 Waveshare ESP32-S3-Zero.
-See README.md for user-facing behaviour, board settings and the status colour table.
+README.md is for end users (behaviour, key selection, lights). Board settings, compile-time
+flags and the Web Serial protocol are documented in the sketch header.
 
 ## Layout
 
@@ -64,5 +65,8 @@ required; `CDCOnBoot=default` means Enabled on this board.
 FQBN='esp32:esp32:waveshare_esp32_s3_zero:USBMode=default,CDCOnBoot=default,UploadMode=cdc,PSRAM=enabled'
 arduino-cli compile -b "$FQBN" --build-property "tools.ctags.pattern=/usr/bin/true" firmware
 ```
+
+Web app (only with `WEB_SERIAL_ENABLED=1`): `python3 website/serve.py` opens Chrome at
+http://127.0.0.1:8080.
 
 Ask the user to do any physical hardware action (plugging in, pressing buttons).
