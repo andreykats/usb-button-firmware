@@ -19,13 +19,16 @@ HARDWARE.md             ← pinout, wiring, parts — keep in sync with pin #def
 - Pins (from resources/ESP32-S3-Zero-Sch.pdf): BOOT button GPIO0 (only onboard user
   button), WS2812B RGB LED GPIO21 in **RGB** colour order (`STATUS_RGB_ORDER`). The 5V pad
   is VBUS directly (no diode, unlike the Matrix).
-- Buttons: external trigger on `TRIGGER_BTN_PIN` (GPIO13, to GND) types the selected key.
-  BOOT steps the key, applies it at once and types it via the same path
-  (`keyPressed()` → `sendSelectedKey()`); the NVS write happens 3 s after the last press.
-  The USB product name updates at next power-up.
-- RGB LED (`handleStatusRgb()`): state colour, overlaid by a short white (delivered) /
-  red (not delivered) flash after each press (`flashStatus()`), held while the trigger is down. `STATE_ERROR` (ESP-NOW
-  init failure) blinks red until reboot and is never left.
+- Buttons (polled every `BUTTON_POLL_MS` = 10 ms): external trigger on `TRIGGER_BTN_PIN`
+  (GPIO13, to GND) types the selected key. BOOT steps the key (a–z, 0–9), applies it at
+  once and types it via the same path (`keyPressed()` → `sendSelectedKey()`), then saves it
+  to NVS. The key is also saved at every boot. Default `'1'`. The USB product name updates
+  at next power-up.
+- Key set and behaviour are kept identical to the `qtpy-samd21` branch: lower-case
+  letters, no Shift; key down on press, up on release (held = host auto-repeat).
+- RGB LED (`handleStatusRgb()`, full brightness): state colour, replaced by white
+  (delivered) / red (not delivered, `pressDelivered`) while a button is held. Never shows
+  the selected key. `STATE_ERROR` (ESP-NOW init failure) blinks red until reboot and is never left.
 - External status LED on `STATUS_LED_PIN` (GPIO1, LEDC PWM → transistor → 5V LED):
   idle continuous 3 s breathing, fast blink while the trigger or BOOT is held (`handleStatusLed()`).
 - No VBUS sense pin. Host state is polled from TinyUSB in `handleHostEnumeration()`:
@@ -33,9 +36,12 @@ HARDWARE.md             ← pinout, wiring, parts — keep in sync with pin #def
   never cleared. Host sleep / unplug from a self-powered hub shows up as suspend, not unmount.
 - Hosted (`usbHostSeen`) → HID + ESP-NOW primary; own presses never go over ESP-NOW,
   even while the host is away. Never hosted → ESP-NOW remote (`sendKeystroke()`).
-- HID reports go through `HID.SendReport()` (`hidTap()` / `handleHidOutput()`), not
-  `Keyboard.press()`, which hides send failures. One tap at a time; local presses
-  preempt queued relay taps. Keep `loop()` order: host tracking, trigger, HID, then the rest.
+- HID reports go through `HID.SendReport()` (`sendKeyReport()` / `hidPress()` /
+  `handleHidOutput()`), not `Keyboard.press()`, which hides send failures. One key at a
+  time: the local key is held while either button is down and cuts a relayed tap short;
+  relayed keystrokes (`HID_HOLD_MS` taps) queue behind it. ESP-NOW carries presses only,
+  so a remote's hold never repeats on the primary. Keep `loop()` order: host tracking,
+  trigger, HID, then the rest.
 - `ESPNOW_MAGIC` stays "QTPY" for interoperability with QT Py and Matrix units.
 - WiFi power save is `WIFI_PS_NONE` (no battery; the primary must not miss relayed packets).
 

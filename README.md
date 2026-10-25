@@ -14,8 +14,8 @@ presses take the same path:
 
 | Plugged into | Behaviour |
 |---|---|
-| A computer | **USB HID keyboard**. The unit also becomes the ESP-NOW **primary** and types keystrokes relayed from other units; its own presses always go first. |
-| USB power only (charger) | Keystroke is sent to the primary via **ESP-NOW** unicast; the primary types it on its computer. |
+| A computer | **USB HID keyboard**. The key goes down on press and up on release, so holding a button makes the computer repeat the key. The unit also becomes the ESP-NOW **primary** and types keystrokes relayed from other units; its own presses always go first. |
+| USB power only (charger) | Keystroke is sent to the primary via **ESP-NOW** unicast; the primary types it on its computer as a single tap (holding does not repeat). |
 
 Once a computer has enumerated the unit, it stays a HID unit until it is power-cycled. If
 the computer sleeps or is unplugged (e.g. from a self-powered hub), the unit waits for it
@@ -24,7 +24,8 @@ computer is attached starts as an ESP-NOW remote and switches to HID when the co
 enumerates it.
 
 Zero units use the same ESP-NOW packet format as the Matrix and QT Py firmware, so all
-three can relay for each other.
+three can relay for each other. Keys are sent without Shift, so letters type lower case;
+a Matrix or QT Py primary still types letters relayed from a Zero in upper case.
 
 Web Serial and WiFi/WebSocket are **disabled by default** (compile-time flags, below).
 
@@ -36,8 +37,8 @@ Web Serial and WiFi/WebSocket are **disabled by default** (compile-time flags, b
 - **Key button**: onboard BOOT (GPIO0)
 - **Status display**: onboard WS2812B RGB LED on GPIO21
 
-See **[HARDWARE.md](HARDWARE.md)** for the header pinout, wiring diagrams and part
-recommendations. The schematic and pinout are in [resources/](resources/).
+See **[HARDWARE.md](HARDWARE.md)** for the pins used, wiring diagrams and parts.
+The board schematic and pinout are in [resources/](resources/).
 
 ## Setup
 
@@ -88,18 +89,19 @@ Set them at the top of the sketch, or with
 
 ## Choosing the key
 
-The key (A–Z, 0–9, default `Q`) is stored in flash.
+The key (a–z, 0–9, default `1`) is stored in flash. Letters type lower case.
 
-1. Press BOOT — the key steps to the next one (A–Z, then 0–9) and is typed straight away,
-   so you can see it in any text field. Without a computer, it is sent over ESP-NOW and
-   typed by the primary.
+1. Press BOOT — the key steps to the next one (a–z, then 0–9), is saved to flash and is
+   typed straight away, so you can see it in any text field. Without a computer, it is
+   sent over ESP-NOW and typed by the primary.
 2. Keep pressing until the key you want appears. The trigger types the new key at once.
-3. Stop pressing: 3 s later the key is saved to flash (no reboot).
 
-The USB product name (`Zero Remote [Q]`) updates at the next power-up. With
+The key is also written to flash at every boot. The USB product name (`Zero Remote [1]`) updates at the next power-up. With
 `WEB_SERIAL_ENABLED=1` the browser app can also set the key (`KEY:x`, then the device reboots).
 
 ## RGB LED status guide
+
+Full brightness. The LED never shows which key is selected.
 
 | LED | Meaning |
 |---|---|
@@ -109,8 +111,8 @@ The USB product name (`Zero Remote [Q]`) updates at the next power-up. With
 | Blue, solid | Power only, connected to the mesh through a primary |
 | Blue, blinking | Power only, looking for a primary |
 | Red, blinking | Error (ESP-NOW failed to start) — reboot to clear |
-| White flash | Button press delivered (trigger or BOOT); stays white while the trigger is held |
-| Red flash | Button press not delivered (power only with no primary, or computer asleep/unplugged); stays red while the trigger is held |
+| White while held | Button press delivered (trigger or BOOT) |
+| Red while held | Button press not delivered (power only with no primary, or computer asleep/unplugged) |
 
 WiFi-mode colours are listed in the sketch header.
 

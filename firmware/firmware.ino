@@ -21,12 +21,16 @@
  *   - WIFI_ENABLED=1       — WebSocket over WiFi + encrypted ESP-NOW credential
  *     sharing. Replaces the ESP-NOW keystroke relay (the two are exclusive).
  *
- * BUTTONS (every press flashes the RGB LED white if the key was delivered, red if not;
- *          the trigger holds that colour for as long as it is held down):
- *   - Trigger (external, TRIGGER_BTN_PIN → GND) — types the selected key.
- *   - BOOT (GPIO0) — steps to the next key (A–Z, 0–9), applies it at once and
- *     types it. Saved to NVS 3 s after the last press. The USB product name
- *     ("Zero Remote [X]") updates at the next power-up.
+ * BUTTONS (both polled every BUTTON_POLL_MS; while a press is held the RGB LED
+ *          shows white if the key was delivered, red if not):
+ *   - Trigger (external, TRIGGER_BTN_PIN → GND) — types the selected key. Over
+ *     USB HID the key goes down on press and up on release, so holding it makes
+ *     the computer repeat the key. Over ESP-NOW the primary types a single tap.
+ *   - BOOT (GPIO0) — steps to the next key (a–z, then 0–9), applies it at once,
+ *     saves it to NVS and types it like the trigger. The key is also written at
+ *     every boot. The USB product name ("Zero Remote [x]") updates at the next
+ *     power-up.
+ *   Keys are sent without Shift: letters type lower case. Default key: '1'.
  *
  * STATUS LED (external, STATUS_LED_PIN → transistor switching 5V to an LED):
  *   - Idle: continuous breathing, one fade-in/fade-out per LED_IDLE_PERIOD_MS.
@@ -89,20 +93,20 @@
  *
  *   Browser → ESP32:
  *     KEY:x\n              Set new HID key
- *     KEY_CLEAR\n           Reset HID key to default 'Q'
+ *     KEY_CLEAR\n           Reset HID key to default '1'
  *     REBOOT\n              Reboot device
  *     WIFI:ssid:password\n  Send credentials (WIFI_ENABLED=1 only)
  *     WIFI_CLEAR\n          Erase saved WiFi credentials (WIFI_ENABLED=1 only)
  *
- * RGB STATUS LED:
+ * RGB STATUS LED (full brightness):
  *   Blinking yellow (150ms) — booting: waiting to learn whether a computer is attached
  *   Solid green             — computer connected: HID + primary hub (also Web Serial)
  *   Blinking green  (500ms) — computer was connected but is asleep/unplugged: waiting
  *   Solid blue              — no computer, connected to the mesh via a primary
  *   Blinking blue   (500ms) — no computer, looking for a primary
  *   Blinking red    (250ms) — error (ESP-NOW failed to start); held until reboot
- *   White flash             — button press delivered (trigger or BOOT)
- *   Red flash               — button press could not be delivered
+ *   White while held        — button press delivered (trigger or BOOT)
+ *   Red while held          — button press could not be delivered
  *   WiFi mode (WIFI_ENABLED=1):
  *   Blinking blue   (500ms) — connecting to WiFi
  *   Alternating purple/blue — WiFi up, waiting for WS client
@@ -150,7 +154,7 @@
 #error "WEB_SERIAL_ENABLED=1 requires Tools → USB CDC On Boot: Enabled."
 #endif
 
-// HID press hold duration before release (handled asynchronously in loop()).
+// Hold duration of a relayed key tap before release (handled asynchronously in loop()).
 const unsigned long HID_HOLD_MS = 10;
 
 #define LOG_PRINTF(...) do { if (ENABLE_VERBOSE_LOGS && (bool)Serial) Serial.printf(__VA_ARGS__); } while (0)
@@ -172,12 +176,11 @@ USBHID         HID;
 // pin with no strapping/USB/LED role; avoid strapping pins 0, 3, 45, 46.
 #define TRIGGER_BTN_PIN  13   // Active LOW, internal pull-up
 #define KEY_BTN_PIN      0    // BOOT (K2), active LOW, 10K external pull-up
-#define DEBOUNCE_MS      50
-const unsigned long KEY_SAVE_DELAY_MS = 3000;  // save to NVS this long after the last BOOT press
+const unsigned long BUTTON_POLL_MS = 10;
 
 // ─── External status LED (transistor-switched 5V) ──────────────────────────
-// GPIO drives the transistor base/gate; HIGH = LED on (low-side NPN / N-MOSFET).
-// Set STATUS_LED_INVERT 1 for a high-side PNP / P-MOSFET stage (LOW = LED on).
+// GPIO drives the base of an NPN emitter follower feeding the LED from 5V; HIGH = LED on.
+// Set STATUS_LED_INVERT 1 for a stage where LOW = LED on (e.g. PNP / P-MOSFET).
 #define STATUS_LED_PIN     1
 #define STATUS_LED_INVERT  0
 const uint32_t      STATUS_LED_PWM_HZ    = 5000;
@@ -192,8 +195,6 @@ const unsigned long LED_FAST_PERIOD_MS   = 100;   // while the trigger is held: 
 // variant). If red and green look swapped on hardware, change STATUS_RGB_ORDER.
 #define STATUS_RGB_PIN         21
 #define STATUS_RGB_ORDER       LED_COLOR_ORDER_RGB
-#define STATUS_RGB_BRIGHTNESS  40     // 0–255 scale applied to every colour
-const unsigned long RGB_FLASH_MS = 120;  // white/red press-feedback flash (minimum; held while the trigger is down)
 
 // ─── WebSocket server (only for WiFi mode) ─────────────────────────────────
 #if WIFI_ENABLED
@@ -220,27 +221,30 @@ enum DeviceState {
 DeviceState currentState = STATE_BOOT_OK;
 
 // ─── Configurable HID key (persisted in NVS flash) ─────────────────────────
-char           hidKey        = 'Q';
-char           savedHidKey   = 'Q';   // value currently in NVS
+const char     DEFAULT_KEY   = '1';
+char           hidKey        = DEFAULT_KEY;
 Preferences    prefs;
 
 // ─── Globals ───────────────────────────────────────────────────────────────
-// Buttons (active LOW). See updateButton().
-struct DebouncedButton {
+// Buttons (active LOW). See pollButton().
+struct Button {
   uint8_t       pin;
-  bool          pressed;      // debounced state
-  unsigned long lastEdgeMs;   // time of the last accepted press or release
+  bool          pressed;      // state at the last poll
+  unsigned long lastPollMs;
 };
 enum ButtonEdge { BTN_NONE, BTN_PRESSED, BTN_RELEASED };
 
-DebouncedButton triggerBtn   = { TRIGGER_BTN_PIN, false, 0 };
-DebouncedButton keyBtn       = { KEY_BTN_PIN,     false, 0 };
+Button        triggerBtn     = { TRIGGER_BTN_PIN, false, 0 };
+Button        keyBtn         = { KEY_BTN_PIN,     false, 0 };
 int           seqCounter     = 0;
 bool          pendingPress   = false;   // trigger/BOOT press during the boot USB wait; sent once the path is known
 
-// HID output: one key tap at a time. The local trigger preempts; relayed taps queue.
-bool          hidKeyDown     = false;   // a key-down report may be on the host; release still owed
-unsigned long hidPressMs     = 0;
+// HID output: the host sees one key at a time. A local press holds its key until
+// both buttons are up and cuts a relayed tap short; relayed taps queue behind it.
+char          hidLocalKey    = 0;       // key held for a local button; 0 = none
+char          hidSentKey     = 0;       // key in the last report sent; 0 = all up. A release is owed while set
+char          relayKey       = 0;       // relayed tap in progress; 0 = none
+unsigned long relayPressMs   = 0;
 const int     RELAY_TAP_QUEUE_LEN = 8;
 char          relayTapQueue[RELAY_TAP_QUEUE_LEN];
 int           relayTapHead   = 0;
@@ -252,16 +256,10 @@ bool          ledFastActive    = false;
 unsigned long ledPhaseStartMs  = 0;       // start of the current fast or idle cycle
 uint32_t      ledLastDuty      = 0xFFFFFFFFUL;
 
-// Key selection (BOOT presses): hidKey changes at once, the NVS write is deferred
-bool          keySavePending = false;
-unsigned long keyLastStepMs  = 0;
-
-// RGB status LED: blink phase, press-feedback flash, write cache
+// RGB status LED: blink phase, press feedback, write cache
 unsigned long lastBlinkMs    = 0;
 bool          blinkPhase     = false;
-bool          rgbFlashActive = false;
-bool          rgbFlashOk     = false;   // white (delivered) vs red (not delivered)
-unsigned long rgbFlashStartMs = 0;
+bool          pressDelivered = false;   // white (delivered) vs red (not delivered) while a button is held
 uint32_t      rgbShown       = 0xFFFFFFFFUL;  // last packed colour written; invalid until first write
 
 // USB host tracking (polled from TinyUSB in handleHostEnumeration())
@@ -288,7 +286,6 @@ bool espNowInitialized = false;
 #define ESPNOW_PKT_KEYSTROKE  0x02
 
 // ─── Color helpers ─────────────────────────────────────────────────────────
-// Full-scale colours; overall output is limited by STATUS_RGB_BRIGHTNESS.
 struct RGB { uint8_t r, g, b; };
 
 const RGB COLOR_GREEN  = {0,   255, 0  };
@@ -301,21 +298,10 @@ const RGB COLOR_OFF    = {0,   0,   0  };
 
 // Set the onboard RGB LED to colour c. Only writes when the colour changes.
 void showStatus(RGB c) {
-  uint8_t r = (uint16_t)c.r * STATUS_RGB_BRIGHTNESS / 255;
-  uint8_t g = (uint16_t)c.g * STATUS_RGB_BRIGHTNESS / 255;
-  uint8_t b = (uint16_t)c.b * STATUS_RGB_BRIGHTNESS / 255;
-  uint32_t packed = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+  uint32_t packed = ((uint32_t)c.r << 16) | ((uint32_t)c.g << 8) | c.b;
   if (packed == rgbShown) return;
   rgbShown = packed;
-  rgbLedWriteOrdered(STATUS_RGB_PIN, STATUS_RGB_ORDER, r, g, b);
-}
-
-// White (delivered) or red (not delivered) flash over the status colour, for
-// RGB_FLASH_MS or as long as the trigger is held, whichever is longer.
-void flashStatus(bool delivered) {
-  rgbFlashActive  = true;
-  rgbFlashOk      = delivered;
-  rgbFlashStartMs = millis();
+  rgbLedWriteOrdered(STATUS_RGB_PIN, STATUS_RGB_ORDER, c.r, c.g, c.b);
 }
 
 // ─── State management ──────────────────────────────────────────────────────
@@ -327,14 +313,13 @@ void setState(DeviceState s) {
 }
 
 // ─── HID output ────────────────────────────────────────────────────────────
-// Map a key label (A–Z, 0–9) to a keyboard report. Letters carry Left Shift,
-// matching what Keyboard.press() sent for upper-case characters.
+// Map a key label (a–z, 0–9) to a keyboard report. No Shift: letters type lower
+// case. Upper-case labels (relayed from older units) map to the same keys.
 bool buildKeyReport(char key, hid_keyboard_report_t &report) {
   memset(&report, 0, sizeof(report));
-  key = toUpperCase(key);
-  if (key >= 'A' && key <= 'Z') {
-    report.modifier   = KEYBOARD_MODIFIER_LEFTSHIFT;
-    report.keycode[0] = HID_KEY_A + (key - 'A');
+  key = toLowerCase(key);
+  if (key >= 'a' && key <= 'z') {
+    report.keycode[0] = HID_KEY_A + (key - 'a');
   } else if (key >= '1' && key <= '9') {
     report.keycode[0] = HID_KEY_1 + (key - '1');
   } else if (key == '0') {
@@ -345,24 +330,27 @@ bool buildKeyReport(char key, hid_keyboard_report_t &report) {
   return true;
 }
 
-bool sendHidRelease() {
+// Send a report holding key, or releasing all keys when key is 0. Returns true
+// only if the report reached the host.
+bool sendKeyReport(char key) {
   hid_keyboard_report_t report = {};
+  if (key && !buildKeyReport(key, report)) return false;
+  // A key-down that times out may still reach the host, so a release is owed from the attempt on.
+  if (key) hidSentKey = key;
   if (!HID.SendReport(HID_REPORT_ID_KEYBOARD, &report, sizeof(report))) return false;
-  hidKeyDown = false;
+  hidSentKey = key;
   return true;
 }
 
-// Press one key now; handleHidOutput() releases it after HID_HOLD_MS. A key still
-// down is released first so the host always sees a fresh key-down, even when the
-// same key is pressed twice. Returns true only if the report reached the host.
-bool hidTap(char key) {
-  hid_keyboard_report_t report;
-  if (!usbHostReady || !buildKeyReport(key, report)) return false;
-  if (hidKeyDown) sendHidRelease();
-  // A send that times out may still reach the host, so a release is always owed.
-  hidKeyDown = true;
-  hidPressMs = millis();
-  return HID.SendReport(HID_REPORT_ID_KEYBOARD, &report, sizeof(report));
+// Press a local key now; handleHidOutput() releases it once both buttons are up.
+// A key still down is released first so the host always sees a fresh key-down,
+// even when the same key is pressed twice.
+bool hidPress(char key) {
+  if (!usbHostReady) return false;
+  relayKey    = 0;
+  hidLocalKey = key;
+  if (hidSentKey) sendKeyReport(0);
+  return sendKeyReport(key);
 }
 
 void queueRelayTap(char key) {
@@ -374,19 +362,25 @@ void queueRelayTap(char key) {
   relayTapCount++;
 }
 
+// Brings the host's key state to what it should be: the local key while a button
+// is held, otherwise the current relayed tap, otherwise all keys up. Retried every
+// loop until it lands: a lost release would leave the key auto-repeating on the host.
 void handleHidOutput() {
-  if (hidKeyDown) {
-    // Retried every loop until it lands: a lost release would leave the key
-    // auto-repeating on the host.
-    if (millis() - hidPressMs >= HID_HOLD_MS) sendHidRelease();
-    return;
+  if (hidLocalKey && !triggerBtn.pressed && !keyBtn.pressed) hidLocalKey = 0;
+
+  if (!hidLocalKey) {
+    if (relayKey && hidSentKey == relayKey && millis() - relayPressMs >= HID_HOLD_MS) relayKey = 0;
+    // Next tap only after a release, so repeated keys register as separate presses
+    if (!relayKey && !hidSentKey && relayTapCount > 0 && usbHostReady) {
+      relayKey     = relayTapQueue[relayTapHead];
+      relayTapHead = (relayTapHead + 1) % RELAY_TAP_QUEUE_LEN;
+      relayTapCount--;
+      relayPressMs = millis();
+    }
   }
-  if (relayTapCount > 0) {
-    char key = relayTapQueue[relayTapHead];
-    relayTapHead = (relayTapHead + 1) % RELAY_TAP_QUEUE_LEN;
-    relayTapCount--;
-    hidTap(key);
-  }
+
+  char want = hidLocalKey ? hidLocalKey : relayKey;
+  if (want != hidSentKey && usbHostReady) sendKeyReport(want);
 }
 
 // ============================================================================
@@ -1060,17 +1054,15 @@ bool blinkEvery(unsigned long periodMs) {
   return blinkPhase;
 }
 
-// Shows the state colour, with a press-feedback flash on top.
+// Shows the state colour, with press feedback on top while a button is held.
 void handleStatusRgb() {
   unsigned long now = millis();
 
-  // Button press feedback: white = delivered, red = nowhere to go
-  if (rgbFlashActive) {
-    if (triggerBtn.pressed || now - rgbFlashStartMs < RGB_FLASH_MS) {
-      showStatus(rgbFlashOk ? COLOR_WHITE : COLOR_RED);
-      return;
-    }
-    rgbFlashActive = false;
+  // Button press feedback: white = delivered, red = nowhere to go. During the
+  // boot window the press is still pending, so booting stays visible.
+  if ((triggerBtn.pressed || keyBtn.pressed) && !usbWaitActive) {
+    showStatus(pressDelivered ? COLOR_WHITE : COLOR_RED);
+    return;
   }
 
   // Errors win over the boot window so a failed start shows at once
@@ -1194,12 +1186,10 @@ void parseSerialLine(const char *line) {
   if (strncmp(line, "KEY:", 4) == 0 && strlen(line) == 5) {
     char newKey = line[4];
     if (isAlphaNumeric(newKey)) {
-      newKey = toUpperCase(newKey);
+      newKey = toLowerCase(newKey);
       prefs.begin("remote", false);
       prefs.putUChar("hid_key", (uint8_t)newKey);
       prefs.end();
-      savedHidKey    = newKey;
-      keySavePending = false;   // the browser's choice wins over an unsaved BOOT selection
       Serial.printf("KEY_SAVED:%c — send REBOOT to apply\n", newKey);
     } else {
       Serial.println("ERR:KEY_INVALID — must be a single letter or digit");
@@ -1211,8 +1201,6 @@ void parseSerialLine(const char *line) {
     prefs.begin("remote", false);
     prefs.remove("hid_key");
     prefs.end();
-    savedHidKey    = 'Q';
-    keySavePending = false;
     Serial.println("KEY_CLEARED — send REBOOT to apply");
     return;
   }
@@ -1309,13 +1297,14 @@ void handleSerial() {
 
 // ─── Key delivery (trigger and BOOT presses) ─────────────────────────────────
 // Hosted → HID keystroke, before anything else. Never hosted → ESP-NOW to the primary.
-// Flashes the RGB LED white if the key went out, red if it had nowhere to go.
+// The RGB LED shows white while the button is held if the key went out, red if
+// it had nowhere to go.
 void sendSelectedKey() {
   bool routed = false;
 
   // 1. USB HID — first, ahead of every other channel. Preempts any relayed tap.
   if (usbHostReady) {
-    routed = hidTap(hidKey);
+    routed = hidPress(hidKey);
   }
 
   seqCounter++;
@@ -1347,7 +1336,7 @@ void sendSelectedKey() {
   }
 #endif
 
-  flashStatus(routed);
+  pressDelivered = routed;
 }
 
 // Send now, or hold the press until the boot USB wait knows the delivery path.
@@ -1357,21 +1346,16 @@ void keyPressed() {
 }
 
 // ─── Key-select mode ─────────────────────────────────────────────────────────
-// Cycle order: A–Z then 0–9.
+// Cycle order: a–z then 0–9.
 char nextKeyChar(char c) {
-  if (c >= 'A' && c < 'Z') return c + 1;
-  if (c == 'Z')            return '0';
+  if (c >= 'a' && c < 'z') return c + 1;
+  if (c == 'z')            return '0';
   if (c >= '0' && c < '9') return c + 1;
-  return 'A';
+  return 'a';
 }
 
-// Persist the key once BOOT presses stop — one NVS write per selection, not per press.
+// Persist the key. Called on every BOOT press and at every boot.
 void saveHidKey() {
-  keySavePending = false;
-  if (hidKey == savedHidKey) {
-    LOG_PRINTLN("LOG:KEYSEL_UNCHANGED");
-    return;
-  }
   prefs.begin("remote", false);
   size_t written = prefs.putUChar("hid_key", (uint8_t)hidKey);
   prefs.end();
@@ -1379,7 +1363,6 @@ void saveHidKey() {
     if ((bool)Serial) Serial.println("ERR:KEY_SAVE_FAILED");
     return;
   }
-  savedHidKey = hidKey;
   LOG_PRINTF("LOG:KEYSEL_SAVED key=%c ts=%lu\n", hidKey, millis());
 }
 
@@ -1425,43 +1408,33 @@ void handleStatusLed() {
   writeStatusLed((uint32_t)(breath * breath * STATUS_LED_MAX_DUTY));
 }
 
-// ─── Button debounce (edge lockout) ────────────────────────────────────────
-// A press or release is acted on at once (lowest latency), then the pin is
-// ignored for DEBOUNCE_MS so contact bounce on either edge can't register as
-// another edge.
-ButtonEdge updateButton(DebouncedButton &btn, unsigned long now) {
-  if (now - btn.lastEdgeMs < DEBOUNCE_MS) return BTN_NONE;
+// ─── Button polling ────────────────────────────────────────────────────────
+// Each button is read every BUTTON_POLL_MS; contact bounce settles between polls.
+ButtonEdge pollButton(Button &btn, unsigned long now) {
+  if (now - btn.lastPollMs < BUTTON_POLL_MS) return BTN_NONE;
+  btn.lastPollMs = now;
   bool down = digitalRead(btn.pin) == LOW;
   if (down == btn.pressed) return BTN_NONE;
-  btn.pressed    = down;
-  btn.lastEdgeMs = now;
+  btn.pressed = down;
   return down ? BTN_PRESSED : BTN_RELEASED;
 }
 
 // ─── Trigger button ────────────────────────────────────────────────────────
-// Keystroke fires on press; handleStatusLed() blinks fast until release.
+// Key goes down on press; handleHidOutput() releases it once the button is up.
 void handleTriggerButton() {
-  if (updateButton(triggerBtn, millis()) == BTN_PRESSED) keyPressed();
+  if (pollButton(triggerBtn, millis()) == BTN_PRESSED) keyPressed();
 }
 
 // ─── BOOT button: key selection ────────────────────────────────────────────
-// Each press steps to the next key, applies it at once and types it like a
-// trigger press. The key is saved KEY_SAVE_DELAY_MS after the last press.
+// Each press steps to the next key, applies it at once, types it like a
+// trigger press and saves it.
 void handleKeyButton() {
-  unsigned long now = millis();
-
-  if (updateButton(keyBtn, now) == BTN_PRESSED) {
-    hidKey         = nextKeyChar(hidKey);
-    keySavePending = true;
-    keyLastStepMs  = now;
-    LOG_PRINTF("LOG:KEYSEL key=%c ts=%lu\n", hidKey, now);
-    PROTO_PRINTF("CONFIG:key=%c\n", hidKey);
-    keyPressed();
-  }
-
-  if (keySavePending && !keyBtn.pressed && now - keyLastStepMs >= KEY_SAVE_DELAY_MS) {
-    saveHidKey();
-  }
+  if (pollButton(keyBtn, millis()) != BTN_PRESSED) return;
+  hidKey = nextKeyChar(hidKey);
+  LOG_PRINTF("LOG:KEYSEL key=%c ts=%lu\n", hidKey, millis());
+  PROTO_PRINTF("CONFIG:key=%c\n", hidKey);
+  keyPressed();
+  saveHidKey();
 }
 
 // ─── ESP-NOW initialization ─────────────────────────────────────────────────
@@ -1517,15 +1490,15 @@ void setup() {
 
   // 3. USB composite device setup — ORDER IS CRITICAL
   prefs.begin("remote", true);
-  hidKey = (char)prefs.getUChar("hid_key", 'Q');
+  hidKey = (char)prefs.getUChar("hid_key", DEFAULT_KEY);
 #if WIFI_ENABLED
   String wifiSSID_stored = prefs.getString("wifi_ssid", "");
   String wifiPass_stored = prefs.getString("wifi_pass", "");
 #endif
   prefs.end();
-  if (!isAlphaNumeric(hidKey)) hidKey = 'Q';
-  hidKey = toUpperCase(hidKey);
-  savedHidKey = hidKey;
+  if (!isAlphaNumeric(hidKey)) hidKey = DEFAULT_KEY;
+  hidKey = toLowerCase(hidKey);   // keys saved upper case by earlier firmware
+  saveHidKey();
 
   Keyboard.begin();
   Serial.begin(115200);
