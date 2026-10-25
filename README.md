@@ -12,9 +12,12 @@ repeating the key after a short delay.
 
 ## Hardware requirements
 
-When using a powered USB hub, allow **2.5 W per button port** (5 V, 500 mA). The hub's
-power supply must cover every port in use: for example, a 10-port hub with a button on
-each port needs a power supply of at least **25 W**.
+> ⚠️ **A powered USB hub is required.** To connect buttons through a hub, use one with
+> its own power supply. Unpowered (bus-powered) hubs are not supported.
+
+Allow **2.5 W per button port** (5 V, 500 mA). The hub's power supply must cover every
+port in use: for example, a 10-port hub with a button on each port needs a power supply
+of at least **25 W**.
 
 ## Choosing the key
 
