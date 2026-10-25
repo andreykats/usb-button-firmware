@@ -27,14 +27,15 @@ Any normally-open momentary switch. No resistors: the firmware enables the inter
 
 ## Status LED
 
-The transistor switches the LED's ground side. Pin HIGH turns the LED on.
+The transistor is an emitter follower feeding the LED from 5V. Pin HIGH turns the LED on.
+The LED gets about 2.6 V (the pin's 3.3 V minus the transistor's 0.7 V), which also limits
+its current without resistors.
 
 ```
-"5V" ── LED (anode → cathode) ── C
-                                  NPN 2N2222
-"MO" ─────────────────────────── B
-
-"GND" ────────────────────────── E
+"5V" ─── C
+          NPN 2N2222
+"MO" ─── B
+          E ── LED (anode → cathode) ── "GND"
 ```
 
 | Part | Value |
