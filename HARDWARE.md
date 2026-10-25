@@ -41,7 +41,7 @@ its current without resistors.
 | Part | Value |
 |---|---|
 | Transistor | 2N2222 NPN, TO-92 |
-| LED | White 5 mm, Vf 3.0–3.4 V |
+| LED | CHANZON 8 mm white (straw hat), Vf 3.0–3.2 V, 250 mA |
 
 **Transistor pinout.** Generic "2N2222" TO-92 parts come in two pinouts, read with the flat
 face toward you and the legs down: PN2222A is E-B-C, P2N2222A is C-B-E. Check yours before
