@@ -10,15 +10,6 @@ adapter.
 Holding the trigger works like holding a key on a keyboard: the computer starts
 repeating the key after a short delay.
 
-## Hardware requirements
-
-> ⚠️ **A powered USB hub is required.** To connect buttons through a hub, use one with
-> its own power supply. Unpowered (bus-powered) hubs are not supported.
-
-Allow **2.5 W per button port** (5 V, 500 mA). The hub's power supply must cover every
-port in use: for example, a 10-port hub with a button on each port needs a power supply
-of at least **25 W**.
-
 ## Choosing the key
 
 There are 36 keys to choose from: the letters a–z (typed in lower case) and the digits
@@ -27,6 +18,15 @@ There are 36 keys to choose from: the letters a–z (typed in lower case) and th
 Press the select button to step to the next key: a, b, c … z, then 0, 1 … 9, then back
 to a. Each press types the new key straight away, so you can see which one is selected
 in any text field. The button remembers its key when unplugged.
+
+## Hardware requirements
+
+> ⚠️ **A powered USB hub is required.** To connect buttons through a hub, use one with
+> its own power supply. Unpowered (bus-powered) hubs are not supported.
+
+Allow **2.5 W per button port** (5 V, 500 mA). The hub's power supply must cover every
+port in use: for example, a 10-port hub with a button on each port needs a power supply
+of at least **25 W**.
 
 ## Lights
 
