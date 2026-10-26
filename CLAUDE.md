@@ -131,8 +131,11 @@ core's `tools/partitions/boot_app0.bin` into `zero-<commit>/` as `bootloader.bin
 python3 -I flash_fleet.py zero zero-<commit> --watch --until N
 ```
 
-Each board not yet logged ok is flashed as `board-NN`, verified (same USB location back as
-303A:822B with a HID interface) and logged by USB serial (the MAC) to `flash-log-zero.csv`.
+Each board not yet logged ok **with this image** is flashed, verified (same USB location back
+as 303A:822B with a HID interface) and logged by USB serial (the MAC) to `flash-log-zero.csv`.
+A board keeps the `board-NN` it was first logged ok as; a new one gets the next free number.
+`--until N` counts boards logged ok with this image, so reflashing boards 01–10 is
+`--until 10`. Unplug any board that shouldn't be flashed (e.g. a test board) first.
 
 - Boards in USB-Serial/JTAG mode (303A:1001: factory firmware or ROM) are reset into
   download mode by esptool. The running sketch (303A:822B) gets a 1200-baud touch first.
