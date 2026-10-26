@@ -109,6 +109,13 @@
   .lamp.fast::after    { animation: blink .1s steps(1) infinite; }   /* LED_FAST_PERIOD_MS */
   .lamp.slow::after    { animation: blink 1s steps(1) infinite; }    /* LED_SLOW_PERIOD_MS */
   .lamp.breathe::after { animation: breathe 3s ease-in-out infinite; } /* LED_BREATHE_PERIOD_MS */
+
+  /* Status light brightness previews */
+  .rgb-dot {
+    flex: none; width: 14px; height: 14px; border-radius: 50%;
+    background: conic-gradient(#ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+  }
+  .rgb-dot.dim { opacity: .3; }
   @keyframes blink   { 0% { opacity: 1; } 50% { opacity: 0; } }
   @keyframes breathe { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
 
@@ -242,6 +249,18 @@
       </fieldset>
     </section>
 
+    <section class="panel">
+      <h2>Status light</h2>
+      <p>The colour light on the board.</p>
+      <fieldset data-setting="rgb">
+        <legend>Brightness<span class="saved"></span></legend>
+        <div class="choices">
+          <label class="choice"><input type="radio" name="rgb" value="normal"><span><i class="rgb-dot"></i>Normal</span></label>
+          <label class="choice"><input type="radio" name="rgb" value="dim"><span><i class="rgb-dot dim"></i>Dim</span></label>
+        </div>
+      </fieldset>
+    </section>
+
     <div class="actions">
       <button type="button" id="defaultsBtn">Restore defaults</button>
       <button type="button" class="primary" id="exitBtn">Disconnect</button>
@@ -255,7 +274,7 @@
 // Waveshare ESP32-S3-Zero running this firmware (same VID:PID in both modes)
 const DEVICE_FILTERS = [{ usbVendorId: 0x303A, usbProductId: 0x822B }];
 const REPLY_TIMEOUT_MS = 1500;
-const SETTING_NAMES = ['edge', 'repeat', 'pressed', 'idle'];
+const SETTING_NAMES = ['edge', 'repeat', 'pressed', 'idle', 'rgb'];
 const TEST_REPEAT_DELAY_MS = 500;   // a typical computer key-repeat delay…
 const TEST_REPEAT_EVERY_MS = 60;    // …and rate, for the trigger test
 const TEST_MAX_CHARS = 160;
@@ -311,6 +330,16 @@ function holdTestKey() {
 function setTriggerDown(down) {
   $('triggerDot').classList.toggle('down', down);
   if (!down) stopTestRepeat();
+}
+
+// Settings the button didn't report (older firmware) are hidden, not shown unset
+function showReportedSettings(values) {
+  for (const fieldset of form.querySelectorAll('fieldset[data-setting]')) {
+    fieldset.hidden = !(fieldset.dataset.setting in values);
+  }
+  for (const panel of form.querySelectorAll('.panel')) {
+    panel.hidden = !panel.querySelector('fieldset:not([hidden])');
+  }
 }
 
 function applySettings(values) {
@@ -435,7 +464,9 @@ async function connect(candidate, quiet = false) {
   readLoop();
   try {
     const line = await request('GET', l => l.startsWith('SETTINGS:'));
-    applySettings(parseSettings(line));
+    const values = parseSettings(line);
+    showReportedSettings(values);
+    applySettings(values);
     exiting = false;
     showConnected(true);
     setStatus('Connected — changes are saved on the button as you make them.');
