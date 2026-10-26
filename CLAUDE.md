@@ -137,8 +137,8 @@ as 303A:822B with a HID interface) and logged by USB serial (the MAC) to `flash-
 A board keeps the `board-NN` it was first logged ok as; a new one gets the next free number.
 `--until N` counts boards logged ok with this image, so reflashing boards 01–10 is
 `--until 10`. Unplug any board that shouldn't be flashed (e.g. a test board) first.
-After every flash (fleet tool or IDE upload to a fleet board), update FLEET.md: the board's
-current firmware, a history row, and a new image row for a new commit.
+After every flash (fleet tool or IDE upload to a fleet board), update the board's firmware
+commit in FLEET.md. Keep it to that list.
 
 - Boards in USB-Serial/JTAG mode (303A:1001: factory firmware or ROM) are reset into
   download mode by esptool. The running sketch (303A:822B) gets a 1200-baud touch first.
