@@ -22,17 +22,17 @@
  *   - WIFI_ENABLED=1       — WebSocket over WiFi + encrypted ESP-NOW credential
  *     sharing. Replaces the ESP-NOW keystroke relay (the two are exclusive).
  *
- * BUTTONS (both polled every BUTTON_POLL_MS; while a press is held the RGB LED
- *          shows white if the key was delivered, red if not):
+ * BUTTONS (both polled every BUTTON_POLL_MS; the RGB LED shows white if the key
+ *          was delivered, red if not, while it is held or just after release):
  *   - Trigger (external, TRIGGER_BTN_PIN → GND) — types the selected key, on press
  *     (default) or on release (setting "edge"). On press with "repeat" on (default)
  *     the key is held over USB HID while the button is, so the computer repeats it;
  *     otherwise it is a single tap. Over ESP-NOW the primary always types a tap.
- *   - BOOT (GPIO0) — on press, steps to the next key (a–z, then 0–9), applies it at
- *     once, saves it to NVS and types it as a single tap (never repeats). The key is
- *     also written at every boot. The USB product name ("Zero Remote [x]") updates
- *     at the next power-up. Held for SETTINGS_HOLD_MS: the key steps back and the
- *     unit restarts into settings mode.
+ *   - BOOT (GPIO0) — on release, steps to the next key (a–z, then 0–9), applies it
+ *     at once, saves it to NVS and types it as a single tap (never repeats). The key
+ *     is also written at every boot. The USB product name ("Zero Remote [x]")
+ *     updates at the next restart or power-up. Held for SETTINGS_HOLD_MS instead:
+ *     the unit restarts into settings mode, with nothing typed and the key unchanged.
  *   Keys are sent without Shift: letters type lower case. Default key: '1'.
  *
  * SETTINGS MODE (BOOT held SETTINGS_HOLD_MS):
@@ -154,7 +154,7 @@
  *   Solid blue              — no computer, connected to the mesh via a primary
  *   Blinking blue   (500ms) — no computer, looking for a primary
  *   Blinking red    (250ms) — error (ESP-NOW failed to start); held until reboot
- *   White while held        — button press delivered (trigger or BOOT). With
+ *   White while held        — button press delivered (trigger). BOOT and
  *                             edge=release: for PRESS_FEEDBACK_MS after release
  *   Red while held          — button press could not be delivered (same timing)
  *   Rainbow (3 s cycle)     — settings mode, starting from purple
@@ -342,11 +342,10 @@ int           seqCounter     = 0;
 bool          pendingPress   = false;   // trigger/BOOT press during the boot USB wait; sent once the path is known
 bool          pendingHold    = false;   // ...and whether it asked to hold the key
 
-// BOOT hold towards settings mode. Tracked from a press edge only, so a BOOT
-// still held through a restart never counts.
+// BOOT press in progress: a key step on release, or settings mode if held. Tracked
+// from a press edge only, so a BOOT still held through a restart never counts.
 bool          keyHoldTracked = false;
 unsigned long keyHoldStartMs = 0;
-char          keyBeforeHold  = DEFAULT_KEY;  // restored when the hold enters settings mode
 
 // HID output: the host sees one key at a time. A local press is either held
 // while the trigger is down (repeat) or a HID_HOLD_MS tap, and cuts a relayed
@@ -372,7 +371,7 @@ uint32_t      ledLastDuty      = 0xFFFFFFFFUL;
 unsigned long lastBlinkMs    = 0;
 bool          blinkPhase     = false;
 bool          pressDelivered = false;   // white (delivered) vs red (not delivered) while a button is held
-bool          releaseFeedback   = false; // edge=release: feedback shown for PRESS_FEEDBACK_MS from releaseFeedbackMs
+bool          releaseFeedback   = false; // typed on release (BOOT, edge=release): shown for PRESS_FEEDBACK_MS from releaseFeedbackMs
 unsigned long releaseFeedbackMs = 0;
 unsigned long lastRainbowMs  = 0;
 uint32_t      rgbShown       = 0xFFFFFFFFUL;  // last packed colour written; invalid until first write
@@ -1195,15 +1194,14 @@ RGB colorWheel(uint16_t pos) {
   }
 }
 
-// True while the RGB LED should show white/red press feedback. A trigger set to
-// type on release has sent nothing while held, so it gets a short flash after
-// the release instead. BOOT counts from its press edge (keyHoldTracked), not
-// while still held through a restart. The release flash is cleared once over, so
-// an old timestamp never comes back into range when millis() wraps.
+// True while the RGB LED should show white/red press feedback. BOOT, and a trigger
+// set to type on release, have sent nothing while held, so they get a short flash
+// after the release instead. The release flash is cleared once over, so an old
+// timestamp never comes back into range when millis() wraps.
 bool pressFeedbackActive(unsigned long now) {
   if (releaseFeedback && now - releaseFeedbackMs >= PRESS_FEEDBACK_MS) releaseFeedback = false;
   bool trigger = triggerBtn.pressed && trigEdge == EDGE_PRESS;
-  return trigger || keyHoldTracked || releaseFeedback;
+  return trigger || releaseFeedback;
 }
 
 // Shows the state colour, with press feedback on top while a button is held.
@@ -1770,31 +1768,30 @@ void restartIntoSettingsMode() {
 }
 
 // ─── BOOT button: key selection ────────────────────────────────────────────
-// Each press steps to the next key, applies it at once, types it as a tap and
-// saves it. Held for SETTINGS_HOLD_MS, the key steps back and the unit restarts
-// into settings mode.
+// Released before SETTINGS_HOLD_MS, BOOT steps to the next key, applies it at
+// once, types it as a tap and saves it. Held that long, the unit restarts into
+// settings mode with nothing typed or changed. Only a release whose press was
+// seen counts, so BOOT still held through a restart does nothing when let go.
 void handleKeyButton() {
   unsigned long now = millis();
   ButtonEdge edge = pollButton(keyBtn, now);
 
   if (edge == BTN_PRESSED) {
-    keyBeforeHold  = hidKey;
     keyHoldStartMs = now;
     keyHoldTracked = true;
+  } else if (edge == BTN_RELEASED && keyHoldTracked) {
+    keyHoldTracked = false;
     hidKey = nextKeyChar(hidKey);
     LOG_PRINTF("LOG:KEYSEL key=%c ts=%lu\n", hidKey, now);
     PROTO_PRINTF("CONFIG:key=%c\n", hidKey);
     keyPressed(false);
+    releaseFeedback   = true;
+    releaseFeedbackMs = now;
     saveHidKey();
-  } else if (edge == BTN_RELEASED) {
-    keyHoldTracked = false;
   }
 
   if (keyHoldTracked && now - keyHoldStartMs >= SETTINGS_HOLD_MS) {
     keyHoldTracked = false;
-    hidKey = keyBeforeHold;
-    PROTO_PRINTF("CONFIG:key=%c\n", hidKey);
-    saveHidKey();
     restartIntoSettingsMode();
   }
 }

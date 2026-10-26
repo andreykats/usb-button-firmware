@@ -44,11 +44,13 @@ Also update the settings table in README.md here.
 - Buttons (polled every `BUTTON_POLL_MS` = 10 ms): external trigger on `TRIGGER_BTN_PIN`
   (GPIO13, to GND) types the selected key on press or release (setting `edge`); on press
   with `repeat` on it is held while the button is (host auto-repeat), else a
-  `HID_HOLD_MS` tap. BOOT steps the key (a–z, 0–9) on press, applies it at once, types it
+  `HID_HOLD_MS` tap. BOOT steps the key (a–z, 0–9) on release (only of a press seen
+  in this boot, and released before `SETTINGS_HOLD_MS`), applies it at once, types it
   as a tap via the same path (`keyPressed()` → `sendSelectedKey()`), then saves it to
-  NVS. The key is also saved at every boot. Default `'1'`. The USB product name updates
-  at next power-up.
-- Settings mode: BOOT held `SETTINGS_HOLD_MS` (3 s) restores the previous key, sets NVS
+  NVS. On release, not press, so a hold into settings mode types and changes nothing.
+  The key is also saved at every boot. Default `'1'`. The USB product name updates at
+  the next restart or power-up.
+- Settings mode: BOOT held `SETTINGS_HOLD_MS` (3 s) sets NVS
   flag `settings` and calls `ESP.restart()`. `setup()` reads and clears the flag, so any
   later restart, RESET or power cycle is normal mode. Settings mode registers CDC only
   (named "USB Button [key] (EB:F4:58)", the last 3 MAC bytes), no ESP-NOW, rainbow RGB
@@ -67,8 +69,8 @@ Also update the settings table in README.md here.
   letters, no Shift. Settings mode, the BOOT tap and the configurable trigger are
   Advanced-only.
 - RGB LED (`handleStatusRgb()`, full brightness): state colour, replaced by white
-  (delivered) / red (not delivered, `pressDelivered`) while a button is held (edge=release:
-  `PRESS_FEEDBACK_MS` after release). Never shows the selected key. `STATE_ERROR` (ESP-NOW init failure) blinks red until reboot and is never left.
+  (delivered) / red (not delivered, `pressDelivered`) while the trigger is held (BOOT and
+  edge=release: `PRESS_FEEDBACK_MS` after release, `releaseFeedback`). Never shows the selected key. `STATE_ERROR` (ESP-NOW init failure) blinks red until reboot and is never left.
 - External status LED on `STATUS_LED_PIN` (GPIO1, LEDC PWM): `idle` pattern (default 3 s
   breathing), `pressed` pattern while the trigger or BOOT is held (default fast blink)
   (`handleStatusLed()`). The hardware is an NPN

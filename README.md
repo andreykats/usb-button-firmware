@@ -26,9 +26,11 @@ types it. Several wireless buttons can share one connected button.
 There are 36 keys to choose from: the letters a–z (typed in lower case) and the digits
 0–9. The default key is `1`.
 
-Press the small **BOOT** button on the board to step to the next key: a, b, c … z, then
-0, 1 … 9, then back to a. Each press types the new key once, straight away, so you can
-see which one is selected in any text field. The button remembers its key when unplugged.
+Press and release the small **BOOT** button on the board to step to the next key: a, b,
+c … z, then 0, 1 … 9, then back to a. Each time you let go it types the new key once, so
+you can see which one is selected in any text field. The button remembers its key when
+unplugged. Holding BOOT for 3 seconds opens [settings](#settings) instead, without
+changing the key.
 
 You can also pick the key directly on the [settings page](#settings).
 
@@ -91,7 +93,8 @@ A wireless button can use any USB charger rated 5 V, 500 mA or more.
 | 🔴 Red while a button is held | The key press could not be delivered |
 | 🌈 Cycling through all colours | Settings mode |
 
-If the trigger is set to type when released, white or red shows briefly after you let go.
+BOOT, and the trigger when it's set to type when released, show white or red briefly
+after you let go.
 
 **Trigger light**
 
