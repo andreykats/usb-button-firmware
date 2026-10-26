@@ -50,6 +50,7 @@
  *   repeat     on, off               — trigger held repeats (edge=press only)
  *   pressed    fast, on, slow, off   — status LED while a button is held
  *   idle       breathe, fast, slow, off — status LED otherwise
+ *   rgb        normal, high, low     — onboard RGB LED at 20 %, 100 % or 1 % brightness
  *
  * STATUS LED (external, STATUS_LED_PIN → transistor switching 5V to an LED):
  *   - Idle (setting "idle"): breathing, one fade-in/fade-out per LED_BREATHE_PERIOD_MS.
@@ -99,7 +100,7 @@
  *     REBOOT\n               Restart into normal mode
  *
  *   ESP32 → Browser:
- *     SETTINGS:edge=press,repeat=on,pressed=fast,idle=breathe,key=1\n   (GET,
+ *     SETTINGS:edge=press,repeat=on,pressed=fast,idle=breathe,rgb=normal,key=1\n   (GET,
  *                            DEFAULTS; key is read-only)
  *     OK:name=value\n        Setting saved and applied
  *     TRIGGER:down|up\n      Trigger pressed / released (trigger test)
@@ -142,7 +143,7 @@
  *     WIFI:ssid:password\n  Send credentials (WIFI_ENABLED=1 only)
  *     WIFI_CLEAR\n          Erase saved WiFi credentials (WIFI_ENABLED=1 only)
  *
- * RGB STATUS LED (full brightness):
+ * RGB STATUS LED (brightness: setting "rgb"):
  *   Blinking yellow (150ms) — booting: waiting to learn whether a computer is attached
  *   Solid green             — computer connected: HID + primary hub (also Web Serial)
  *   Blinking green  (500ms) — computer was connected but is asleep/unplugged: waiting
@@ -267,6 +268,7 @@ uint8_t trigEdge   = EDGE_PRESS;
 uint8_t trigRepeat = 1;
 uint8_t ledPressed = LED_FAST;
 uint8_t ledIdle    = LED_BREATHE;
+uint8_t rgbPercent = 20;           // onboard RGB LED brightness, percent of each channel
 
 struct SettingChoice { const char *name; uint8_t value; };
 struct SettingDef {
@@ -281,6 +283,7 @@ const SettingChoice EDGE_CHOICES[]    = { {"press", EDGE_PRESS}, {"release", EDG
 const SettingChoice REPEAT_CHOICES[]  = { {"on", 1}, {"off", 0} };
 const SettingChoice PRESSED_CHOICES[] = { {"fast", LED_FAST}, {"on", LED_ON}, {"slow", LED_SLOW}, {"off", LED_OFF} };
 const SettingChoice IDLE_CHOICES[]    = { {"breathe", LED_BREATHE}, {"fast", LED_FAST}, {"slow", LED_SLOW}, {"off", LED_OFF} };
+const SettingChoice RGB_CHOICES[]     = { {"normal", 20}, {"high", 100}, {"low", 1} };
 
 #define COUNT_OF(a) (sizeof(a) / sizeof((a)[0]))
 const SettingDef SETTINGS[] = {
@@ -288,6 +291,7 @@ const SettingDef SETTINGS[] = {
   { "repeat",  "trig_repeat", &trigRepeat, REPEAT_CHOICES,  COUNT_OF(REPEAT_CHOICES)  },
   { "pressed", "led_pressed", &ledPressed, PRESSED_CHOICES, COUNT_OF(PRESSED_CHOICES) },
   { "idle",    "led_idle",    &ledIdle,    IDLE_CHOICES,    COUNT_OF(IDLE_CHOICES)    },
+  { "rgb",     "rgb_bright",  &rgbPercent, RGB_CHOICES,     COUNT_OF(RGB_CHOICES)     },
 };
 
 // ─── WebSocket server (only for WiFi mode) ─────────────────────────────────
@@ -402,12 +406,20 @@ const RGB COLOR_PURPLE = {160, 0,   255};
 const RGB COLOR_WHITE  = {200, 200, 200};
 const RGB COLOR_OFF    = {0,   0,   0  };
 
-// Set the onboard RGB LED to colour c. Only writes when the colour changes.
+// Scales one colour channel to the "rgb" brightness setting, rounded so faint
+// channels at low brightness don't all drop to 0.
+uint8_t dimChannel(uint8_t v) {
+  return (v * rgbPercent + 50) / 100;
+}
+
+// Set the onboard RGB LED to colour c, scaled to the "rgb" brightness setting.
+// Only writes when the colour sent to the LED changes.
 void showStatus(RGB c) {
-  uint32_t packed = ((uint32_t)c.r << 16) | ((uint32_t)c.g << 8) | c.b;
+  uint8_t r = dimChannel(c.r), g = dimChannel(c.g), b = dimChannel(c.b);
+  uint32_t packed = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
   if (packed == rgbShown) return;
   rgbShown = packed;
-  rgbLedWriteOrdered(STATUS_RGB_PIN, STATUS_RGB_ORDER, c.r, c.g, c.b);
+  rgbLedWriteOrdered(STATUS_RGB_PIN, STATUS_RGB_ORDER, r, g, b);
 }
 
 // ─── State management ──────────────────────────────────────────────────────

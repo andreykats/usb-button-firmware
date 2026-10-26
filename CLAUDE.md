@@ -40,8 +40,9 @@ HARDWARE.md             ← only the pins and parts actually used — keep in sy
   (TRM Table 7-1): BOOT held through it does not enter download mode. BOOT held at boot
   is taken as already pressed.
 - Settings (`SETTINGS[]` table, NVS, applied live): `edge` press/release, `repeat`
-  on/off, `pressed` fast/on/slow/off, `idle` breathe/fast/slow/off. First choice is the
-  default. "On" is a 125 Hz blink (`LED_FLICKER_PERIOD_MS`), not steady.
+  on/off, `pressed` fast/on/slow/off, `idle` breathe/fast/slow/off, `rgb` normal/high/low
+  (onboard RGB at 20/100/1 %, scaled in `showStatus()`). First choice is the default.
+  "On" is a 125 Hz blink (`LED_FLICKER_PERIOD_MS`), not steady.
 - Key set and status colours are kept identical to the `qtpy-samd21` branch: lower-case
   letters, no Shift. Settings mode, the BOOT tap and the configurable trigger are
   Advanced-only.

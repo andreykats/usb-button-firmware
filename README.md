@@ -51,6 +51,7 @@ You can change how the trigger and its light behave from the settings page,
 | Trigger held down | Repeats the key, types it once (a key typed on release is always typed once) |
 | Trigger light while a button is pressed | Fast blink, on, slow blink, off |
 | Trigger light when idle | Breathing, fast blink, slow blink, off |
+| Status light brightness | Normal, high, low |
 
 Each change is saved on the button straight away. While the button is in settings mode
 it doesn't type: pressing the trigger shows its light, and the settings page shows what
