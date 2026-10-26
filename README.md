@@ -8,12 +8,13 @@ Android with no drivers or software. Phones and tablets need a USB-C port or a U
 adapter.
 
 Holding the trigger works like holding a key on a keyboard: the computer starts
-repeating the key after a short delay.
+repeating the key after a short delay. You can change this in the [settings](#settings-in-the-browser).
 
 The selected key is shown on the button's 8×8 light display, in a colour that shows
-what the button is doing (see [Lights](#lights)).
+what the button is doing (see [Lights](#lights)). Letters are shown as capitals, like on
+a keyboard, but are typed in lower case.
 
-## Wireless buttons
+## Mesh network buttons
 
 A button doesn't have to be plugged into a computer. Plugged into a charger, it sends
 its key wirelessly to a nearby button that *is* plugged into a computer, and that button
@@ -29,12 +30,44 @@ types it. Several wireless buttons can share one connected button.
 There are 36 keys to choose from: the letters a–z (typed in lower case) and the digits
 0–9. The default key is `1`.
 
-Press the small **BOOT** button on the board to step to the next key: a, b, c … z, then
-0, 1 … 9, then back to a. Each press shows the new key on the display and types it
-straight away. The button remembers its key when unplugged.
+Press and release the small **BOOT** button on the board to step to the next key: a, b,
+c … z, then 0, 1 … 9, then back to a. Each time you let go it shows the new key on the
+display and types it once. The button remembers its key when unplugged. Holding BOOT for
+3 seconds opens [settings](#settings-in-the-browser) instead, without changing the key.
+
+You can also pick the key directly on the [settings page](#settings-in-the-browser).
 
 Don't hold BOOT while plugging the button in: that puts the board into firmware-update
 mode. Unplug it and plug it back in to recover.
+
+## Settings in the browser
+
+You can change how the trigger and its light behave from the settings page,
+[button.drey.dev](https://button.drey.dev), in Chrome, Edge, Opera or Firefox on a
+computer. Safari doesn't support it.
+
+1. Plug the button into the computer.
+2. Hold **BOOT** for 3 seconds. The button restarts and the key on its display cycles
+   through all colours. The selected key doesn't change.
+3. Open [button.drey.dev](https://button.drey.dev), click **Connect** and choose the
+   **USB Button** entry. It shows the button's key and an ID that tells buttons apart,
+   e.g. `USB Button [2] (EB:F4:58)`.
+
+| Setting | Choices (default first) |
+|---|---|
+| Key | a–z, 0–9 (default `1`; **Restore defaults** keeps the key) |
+| Trigger types the key | When pressed, when released |
+| Trigger held down | Repeats the key, types it once (a key typed on release is always typed once) |
+| Trigger light while a button is pressed | Fast blink, on, slow blink, off |
+| Trigger light when idle | Breathing, fast blink, slow blink, off |
+| Display brightness | Normal, high, low |
+
+Each change is saved on the button straight away. While the button is in settings mode
+it doesn't type: pressing the trigger shows its light, and the settings page shows what
+your computer would receive.
+
+To go back to normal use, click **Disconnect**, press **BOOT** or **RESET**, or unplug
+the button and plug it back in.
 
 ## Hardware requirements
 
@@ -63,10 +96,16 @@ The selected key is drawn in the colour below.
 | 🔴 Red, blinking | Fault: unplug and plug back in |
 | ⚪ White while a button is held | The key press was delivered |
 | 🔴 Red while a button is held | The key press could not be delivered |
+| 🌈 Cycling through all colours | Settings mode |
 
-**Trigger light**
+BOOT, and the trigger when it's set to type when released, show white or red briefly
+after you let go.
+
+**Trigger light (default)**
 
 | Light | Meaning |
 |---|---|
 | ⚪ Slow breathing | Ready |
 | ⚪ Fast blinking | A button is being held |
+
+These are the defaults; both can be changed in the [settings](#settings-in-the-browser).
