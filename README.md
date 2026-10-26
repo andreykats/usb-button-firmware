@@ -30,6 +30,8 @@ Press the small **BOOT** button on the board to step to the next key: a, b, c �
 0, 1 … 9, then back to a. Each press types the new key once, straight away, so you can
 see which one is selected in any text field. The button remembers its key when unplugged.
 
+You can also pick the key directly on the [settings page](#settings).
+
 Don't hold BOOT while plugging the button in: that puts the board into firmware-update
 mode. Unplug it and plug it back in to recover.
 
@@ -48,6 +50,7 @@ computer. Safari doesn't support it.
 
 | Setting | Choices (default first) |
 |---|---|
+| Key | a–z, 0–9 (default `1`; **Restore defaults** keeps the key) |
 | Trigger types the key | When pressed, when released |
 | Trigger held down | Repeats the key, types it once (a key typed on release is always typed once) |
 | Trigger light while a button is pressed | Fast blink, on, slow blink, off |

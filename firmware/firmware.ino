@@ -53,6 +53,8 @@
  *   pressed    fast, on, slow, off   — status LED while a button is held
  *   idle       breathe, fast, slow, off — status LED otherwise
  *   rgb        normal, high, low     — onboard RGB LED at 20 %, 100 % or 1 % brightness
+ *   key        a–z, 0–9              — the key typed (also stepped by BOOT); not reset by
+ *                                      DEFAULTS. The USB name shows it from the next restart.
  *
  * STATUS LED (external, STATUS_LED_PIN → transistor switching 5V to an LED):
  *   - Idle (setting "idle"): breathing, one fade-in/fade-out per LED_BREATHE_PERIOD_MS.
@@ -97,13 +99,13 @@
  *
  *   Browser → ESP32:
  *     GET\n                  Report the settings
- *     SET:name=value\n       Change one setting (names and values above)
- *     DEFAULTS\n             Restore every setting to its default
+ *     SET:name=value\n       Change one setting (names and values above, key included)
+ *     DEFAULTS\n             Restore every setting but key to its default
  *     REBOOT\n               Restart into normal mode
  *
  *   ESP32 → Browser:
  *     SETTINGS:edge=press,repeat=on,pressed=fast,idle=breathe,rgb=normal,key=1\n   (GET,
- *                            DEFAULTS; key is read-only)
+ *                            DEFAULTS)
  *     OK:name=value\n        Setting saved and applied
  *     TRIGGER:down|up\n      Trigger pressed / released (trigger test)
  *     TYPE:hold|tap\n        What that edge would type: a key held until
@@ -1353,7 +1355,39 @@ bool saveSetting(const SettingDef &s, uint8_t value) {
   return true;
 }
 
-// The settings, then the selected key (read-only here; BOOT changes it).
+// Persist the key. Called on every BOOT press, at every boot and on SET:key.
+bool saveHidKey() {
+  prefs.begin("remote", false);
+  size_t written = prefs.putUChar("hid_key", (uint8_t)hidKey);
+  prefs.end();
+  if (written == 0) {
+    if ((bool)Cdc) Cdc.println("ERR:KEY_SAVE_FAILED");
+    return false;
+  }
+  LOG_PRINTF("LOG:KEYSEL_SAVED key=%c ts=%lu\n", hidKey, millis());
+  return true;
+}
+
+// SET:key=x — any key BOOT can select (a–z, 0–9). The key isn't in SETTINGS[]:
+// BOOT steps it too, and DEFAULTS leaves it alone (each unit in a set has its own).
+// The USB product name shows the new key from the next restart.
+void setKeyFromSettings(const char *value) {
+  char key = value[0];
+  bool valid = value[1] == '\0' && ((key >= 'a' && key <= 'z') || (key >= '0' && key <= '9'));
+  if (!valid) {
+    Cdc.printf("ERR:INVALID_VALUE:key=%s\n", value);
+    return;
+  }
+  char previous = hidKey;
+  hidKey = key;
+  if (!saveHidKey()) {   // saveHidKey() reported the ERR line
+    hidKey = previous;
+    return;
+  }
+  Cdc.printf("OK:key=%c\n", hidKey);
+}
+
+// The settings, then the selected key.
 void printSettings() {
   Cdc.print("SETTINGS:");
   for (size_t i = 0; i < COUNT_OF(SETTINGS); i++) {
@@ -1389,6 +1423,10 @@ void parseSettingsLine(const char *line) {
     }
     memcpy(name, line + 4, nameLen);
     name[nameLen] = '\0';
+    if (strcmp(name, "key") == 0) {
+      setKeyFromSettings(eq + 1);
+      return;
+    }
     const SettingDef *s = findSetting(name);
     if (!s) {
       Cdc.printf("ERR:UNKNOWN_SETTING:%s\n", name);
@@ -1635,18 +1673,6 @@ char nextKeyChar(char c) {
   if (c == 'z')            return '0';
   if (c >= '0' && c < '9') return c + 1;
   return 'a';
-}
-
-// Persist the key. Called on every BOOT press and at every boot.
-void saveHidKey() {
-  prefs.begin("remote", false);
-  size_t written = prefs.putUChar("hid_key", (uint8_t)hidKey);
-  prefs.end();
-  if (written == 0) {
-    if ((bool)Cdc) Cdc.println("ERR:KEY_SAVE_FAILED");
-    return;
-  }
-  LOG_PRINTF("LOG:KEYSEL_SAVED key=%c ts=%lu\n", hidKey, millis());
 }
 
 // ─── External status LED (non-blocking) ────────────────────────────────────
