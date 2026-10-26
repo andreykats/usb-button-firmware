@@ -28,11 +28,12 @@ plugged into a computer, and that button types it.
 | Type | Basic | Advanced | Advanced |
 | Mesh network | ❌ | ✅ | ✅ |
 | Selectable keys | 36: a–z, 0–9 | 36: a–z, 0–9 | 36: a–z, 0–9 |
-| Choosing the key | SELECT button | BOOT button | BOOT button |
+| Choosing the key | SELECT button | BOOT button or browser | BOOT button |
+| Change settings via Browser ([button.drey.dev](https://button.drey.dev)) | ❌ | ✅ trigger behaviour, lights, key | ❌ |
 | Shows the selected key | ❌ | ❌ | ✅ on the 8×8 LED display |
 | Status light | RGB LED | RGB LED | 8×8 LED display (key drawn in the status colour) |
 
-All three firmware versions behave the same way, apart from the Zero's and Matrix's Mesh network features and the Matrix's display.
+All three firmware versions behave the same way, apart from the Zero's and Matrix's Mesh network features, the Zero's settings in the browser and the Matrix's display.
 
 ## Hub power
 
