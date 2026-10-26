@@ -6,7 +6,7 @@ name: Settings page
 
 on:
   push:
-    branches: [advanced-settings]
+    branches: [ws-esp32s3-zero]
     paths:
       - website/index.html
       - .github/workflows/pages.yml
