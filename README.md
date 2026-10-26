@@ -28,7 +28,7 @@ plugged into a computer, and that button types it.
 | Type | Basic | Advanced | Advanced |
 | Mesh network | ❌ | ✅ | ✅ |
 | Selectable keys | 36: a–z, 0–9 | 36: a–z, 0–9 | 36: a–z, 0–9 |
-| Key selector | SELECT button | BOOT button or web browser | BOOT button |
+| Key selector | SELECT button | BOOT button or web browser | BOOT button or web browser |
 | Customizable via web browser | ❌ | ✅ | ❌ |
 | Shows the selected key | ❌ | ❌ | ✅ on the 8×8 LED display |
 | Status light | RGB LED | RGB LED | 8×8 LED display |
