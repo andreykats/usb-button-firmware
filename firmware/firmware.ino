@@ -16,25 +16,46 @@
  *     primary via ESP-NOW unicast; the primary types it on its computer.
  *
  * OPTIONAL CHANNELS (compile-time, both OFF by default):
- *   - WEB_SERIAL_ENABLED=1 — Web Serial protocol over USB CDC (browser app in
- *     website/). Requires Tools → USB CDC On Boot: Enabled.
+ *   - WEB_SERIAL_ENABLED=1 — debug Web Serial protocol over USB CDC in normal mode
+ *     (website/debug.html). Settings mode has its own protocol, always built in.
  *   - WIFI_ENABLED=1       — WebSocket over WiFi + encrypted ESP-NOW credential
  *     sharing. Replaces the ESP-NOW keystroke relay (the two are exclusive).
  *
  * BUTTONS (both polled every BUTTON_POLL_MS; while a press is held the RGB LED
  *          shows white if the key was delivered, red if not):
- *   - Trigger (external, TRIGGER_BTN_PIN → GND) — types the selected key. Over
- *     USB HID the key goes down on press and up on release, so holding it makes
- *     the computer repeat the key. Over ESP-NOW the primary types a single tap.
- *   - BOOT (GPIO0) — steps to the next key (a–z, then 0–9), applies it at once,
- *     saves it to NVS and types it like the trigger. The key is also written at
- *     every boot. The USB product name ("Zero Remote [x]") updates at the next
- *     power-up.
+ *   - Trigger (external, TRIGGER_BTN_PIN → GND) — types the selected key, on press
+ *     (default) or on release (setting "edge"). On press with "repeat" on (default)
+ *     the key is held over USB HID while the button is, so the computer repeats it;
+ *     otherwise it is a single tap. Over ESP-NOW the primary always types a tap.
+ *   - BOOT (GPIO0) — on press, steps to the next key (a–z, then 0–9), applies it at
+ *     once, saves it to NVS and types it as a single tap (never repeats). The key is
+ *     also written at every boot. The USB product name ("Zero Remote [x]") updates
+ *     at the next power-up. Held for SETTINGS_HOLD_MS: the key steps back and the
+ *     unit restarts into settings mode.
  *   Keys are sent without Shift: letters type lower case. Default key: '1'.
  *
+ * SETTINGS MODE (BOOT held SETTINGS_HOLD_MS):
+ *   The unit restarts with USB serial only (no keyboard, no ESP-NOW) as "USB
+ *   Button", RGB LED cycling the rainbow. The browser app in website/
+ *   changes the settings below; each change is saved to NVS and applied at once.
+ *   The trigger doesn't type: it previews the status LED patterns and the settings
+ *   page shows what it would type (TRIGGER/TYPE lines). A new BOOT press, RESET or
+ *   a power cycle returns to normal mode: the mode flag is cleared as settings
+ *   mode starts. A restart from software does not re-sample the strapping pins
+ *   (ESP32-S3 TRM, Table 7-1), so BOOT held through it does not enter download mode.
+ *
+ *   Setting    Values (default first)
+ *   edge       press, release        — when the trigger types
+ *   repeat     on, off               — trigger held repeats (edge=press only)
+ *   pressed    fast, on, slow, off   — status LED while a button is held
+ *   idle       breathe, fast, slow, off — status LED otherwise
+ *
  * STATUS LED (external, STATUS_LED_PIN → transistor switching 5V to an LED):
- *   - Idle: continuous breathing, one fade-in/fade-out per LED_IDLE_PERIOD_MS.
- *   - Trigger or BOOT held: fast blinking for as long as it is held, then back to idle.
+ *   - Idle (setting "idle"): breathing, one fade-in/fade-out per LED_BREATHE_PERIOD_MS.
+ *   - Trigger or BOOT held (setting "pressed"): fast blinking for as long as it is
+ *     held, then back to idle.
+ *   Fast blink: LED_FAST_PERIOD_MS cycle; slow blink: LED_SLOW_PERIOD_MS cycle;
+ *   "on": a LED_FLICKER_PERIOD_MS blink, too fast to see, so it looks steady.
  *
  * REQUIRED LIBRARIES (install via Arduino Library Manager):
  *   - None for the default build.
@@ -52,10 +73,13 @@
  *   PSRAM           : Enabled                  ← 2MB quad PSRAM (ESP32-S3FH4R2)
  *   USB Mode        : USB-OTG (TinyUSB)        ← CRITICAL — HID needs TinyUSB;
  *                                                the board defaults to Hardware CDC
- *   USB CDC On Boot : Enabled                  ← keeps a CDC port for uploads/logs;
- *                                                "Disabled" = HID-only device, flash
- *                                                via BOOT+RESET download mode
- *   Upload Mode     : USB-OTG CDC (TinyUSB)
+ *   USB CDC On Boot : Disabled                 ← CRITICAL — the sketch creates the CDC
+ *                                                port (Cdc) itself and starts USB in
+ *                                                setup(), so it can leave the keyboard
+ *                                                out in settings mode. "Enabled" starts
+ *                                                USB before setup().
+ *   Upload Mode     : USB-OTG CDC (TinyUSB)    ← 1200-baud touch on Cdc resets into
+ *                                                the bootloader
  *
  * HARDWARE PINS (from ESP32-S3-Zero schematic, resources/):
  *   GPIO 0   — BOOT button (active LOW, 10K external pull-up) — key select
@@ -65,7 +89,26 @@
  *   There is no VBUS sense pin: host vs. power-only is detected by USB
  *   enumeration.
  *
- * SERIAL PROTOCOL (WEB_SERIAL_ENABLED=1, 115200 baud, newline-terminated):
+ * SETTINGS PROTOCOL (settings mode only, 115200 baud, newline-terminated):
+ *
+ *   Browser → ESP32:
+ *     GET\n                  Report the settings
+ *     SET:name=value\n       Change one setting (names and values above)
+ *     DEFAULTS\n             Restore every setting to its default
+ *     REBOOT\n               Restart into normal mode
+ *
+ *   ESP32 → Browser:
+ *     SETTINGS:edge=press,repeat=on,pressed=fast,idle=breathe,key=1\n   (GET,
+ *                            DEFAULTS; key is read-only)
+ *     OK:name=value\n        Setting saved and applied
+ *     TRIGGER:down|up\n      Trigger pressed / released (trigger test)
+ *     TYPE:hold|tap\n        What that edge would type: a key held until
+ *                            TRIGGER:up (computer repeats it) or a single tap
+ *     ERR:message\n          Unknown command or setting, invalid value, NVS failure
+ *     REBOOTING...\n         Restarting into normal mode
+ *
+ * DEBUG SERIAL PROTOCOL (normal mode, WEB_SERIAL_ENABLED=1, 115200 baud,
+ * newline-terminated; website/debug.html):
  *
  *   ESP32 → Browser:
  *     READY\n                    Device booted, waiting
@@ -105,8 +148,10 @@
  *   Solid blue              — no computer, connected to the mesh via a primary
  *   Blinking blue   (500ms) — no computer, looking for a primary
  *   Blinking red    (250ms) — error (ESP-NOW failed to start); held until reboot
- *   White while held        — button press delivered (trigger or BOOT)
- *   Red while held          — button press could not be delivered
+ *   White while held        — button press delivered (trigger or BOOT). With
+ *                             edge=release: for PRESS_FEEDBACK_MS after release
+ *   Red while held          — button press could not be delivered (same timing)
+ *   Rainbow (3 s cycle)     — settings mode, starting from purple
  *   WiFi mode (WIFI_ENABLED=1):
  *   Blinking blue   (500ms) — connecting to WiFi
  *   Alternating purple/blue — WiFi up, waiting for WS client
@@ -127,7 +172,7 @@
 #define WEB_SERIAL_ENABLED 0
 #endif
 
-// 1 = emit verbose LOG:* lines over CDC Serial. 0 = suppress verbose logs.
+// 1 = emit verbose LOG:* lines over CDC Cdc. 0 = suppress verbose logs.
 #ifndef ENABLE_VERBOSE_LOGS
 #define ENABLE_VERBOSE_LOGS 0
 #endif
@@ -150,26 +195,30 @@
 #if ARDUINO_USB_MODE
 #error "Set Tools → USB Mode: USB-OTG (TinyUSB). USB HID does not work in Hardware CDC and JTAG mode."
 #endif
-#if WEB_SERIAL_ENABLED && !ARDUINO_USB_CDC_ON_BOOT
-#error "WEB_SERIAL_ENABLED=1 requires Tools → USB CDC On Boot: Enabled."
+#if ARDUINO_USB_CDC_ON_BOOT
+#error "Set Tools → USB CDC On Boot: Disabled. The sketch starts USB itself, with or without the keyboard."
 #endif
 
 // Hold duration of a relayed key tap before release (handled asynchronously in loop()).
 const unsigned long HID_HOLD_MS = 10;
 
-#define LOG_PRINTF(...) do { if (ENABLE_VERBOSE_LOGS && (bool)Serial) Serial.printf(__VA_ARGS__); } while (0)
-#define LOG_PRINTLN(x)  do { if (ENABLE_VERBOSE_LOGS && (bool)Serial) Serial.println(x); } while (0)
+// ─── USB Objects ───────────────────────────────────────────────────────────
+// USB interfaces register when their objects are constructed and are fixed by
+// USB.begin() in setup(). The CDC port is in both modes, so it is a global.
+// Keyboard registers the HID keyboard interface and is created in setup() in
+// normal mode only; reports are sent through hid directly because
+// Keyboard.press() discards the delivery result. hid must be created after
+// keyboard so the keyboard protocol is the one registered.
+USBCDC          Cdc(0);
+USBHIDKeyboard *keyboard = nullptr;
+USBHID         *hid      = nullptr;
+
+#define LOG_PRINTF(...) do { if (ENABLE_VERBOSE_LOGS && (bool)Cdc) Cdc.printf(__VA_ARGS__); } while (0)
+#define LOG_PRINTLN(x)  do { if (ENABLE_VERBOSE_LOGS && (bool)Cdc) Cdc.println(x); } while (0)
 
 // Web Serial protocol output — compiled out unless WEB_SERIAL_ENABLED=1
-#define PROTO_PRINTF(...) do { if (WEB_SERIAL_ENABLED && (bool)Serial) Serial.printf(__VA_ARGS__); } while (0)
-#define PROTO_PRINTLN(x)  do { if (WEB_SERIAL_ENABLED && (bool)Serial) Serial.println(x); } while (0)
-
-// ─── USB Objects ───────────────────────────────────────────────────────────
-// Keyboard registers the HID keyboard interface; reports are sent through HID
-// directly because Keyboard.press() discards the delivery result. HID must be
-// declared after Keyboard so the keyboard protocol is the one registered.
-USBHIDKeyboard Keyboard;
-USBHID         HID;
+#define PROTO_PRINTF(...) do { if (WEB_SERIAL_ENABLED && (bool)Cdc) Cdc.printf(__VA_ARGS__); } while (0)
+#define PROTO_PRINTLN(x)  do { if (WEB_SERIAL_ENABLED && (bool)Cdc) Cdc.println(x); } while (0)
 
 // ─── Hardware ──────────────────────────────────────────────────────────────
 // Trigger: external momentary switch between this pin and GND. GPIO13 is a header
@@ -186,8 +235,10 @@ const unsigned long BUTTON_POLL_MS = 10;
 const uint32_t      STATUS_LED_PWM_HZ    = 5000;
 const uint8_t       STATUS_LED_PWM_BITS  = 10;
 const uint32_t      STATUS_LED_MAX_DUTY  = (1UL << STATUS_LED_PWM_BITS) - 1;
-const unsigned long LED_IDLE_PERIOD_MS   = 3000;  // one breath (fade up + down) every 3 s while idle
-const unsigned long LED_FAST_PERIOD_MS   = 100;   // while the trigger is held: 50 ms on / 50 ms off (10 Hz)
+const unsigned long LED_BREATHE_PERIOD_MS = 3000;  // one breath (fade up + down) every 3 s
+const unsigned long LED_FAST_PERIOD_MS    = 100;   // fast blink: 50 ms on / 50 ms off (10 Hz)
+const unsigned long LED_SLOW_PERIOD_MS    = 1000;  // slow blink: 500 ms on / 500 ms off
+const unsigned long LED_FLICKER_PERIOD_MS = 8;     // "on": 4 ms on / 4 ms off (125 Hz), looks steady
 
 // ─── Onboard RGB status LED (WS2812B) ──────────────────────────────────────
 // Driven by the core's rgbLedWriteOrdered() (RMT). The S3-Zero's LED takes RGB
@@ -195,6 +246,47 @@ const unsigned long LED_FAST_PERIOD_MS   = 100;   // while the trigger is held: 
 // variant). If red and green look swapped on hardware, change STATUS_RGB_ORDER.
 #define STATUS_RGB_PIN         21
 #define STATUS_RGB_ORDER       LED_COLOR_ORDER_RGB
+const unsigned long RAINBOW_PERIOD_MS  = 3000;  // settings mode: one trip round the colour wheel
+const uint16_t      RAINBOW_START_POS  = 4 * 256 + 160;  // colorWheel() purple (160, 0, 255)
+const unsigned long RAINBOW_FRAME_MS   = 20;    // settings mode: RGB update interval
+const unsigned long PRESS_FEEDBACK_MS  = 200;   // edge=release: white/red shown after the release
+
+// ─── Settings mode ─────────────────────────────────────────────────────────
+const unsigned long SETTINGS_HOLD_MS   = 3000;  // BOOT held this long → restart into settings mode
+bool                settingsMode       = false; // this boot is settings mode (NVS flag, cleared at boot)
+unsigned long       settingsStartMs    = 0;     // settings mode: rainbow starts here
+
+// ─── User settings (NVS, changed in settings mode) ─────────────────────────
+// Each setting stores one value from its choices; the first choice is the default.
+enum TriggerEdge : uint8_t { EDGE_PRESS, EDGE_RELEASE };
+enum LedPattern  : uint8_t { LED_BREATHE, LED_FAST, LED_SLOW, LED_ON, LED_OFF };
+
+uint8_t trigEdge   = EDGE_PRESS;
+uint8_t trigRepeat = 1;
+uint8_t ledPressed = LED_FAST;
+uint8_t ledIdle    = LED_BREATHE;
+
+struct SettingChoice { const char *name; uint8_t value; };
+struct SettingDef {
+  const char          *name;     // protocol name
+  const char          *nvsKey;
+  uint8_t             *value;
+  const SettingChoice *choices;  // choices[0] is the default
+  uint8_t              count;
+};
+
+const SettingChoice EDGE_CHOICES[]    = { {"press", EDGE_PRESS}, {"release", EDGE_RELEASE} };
+const SettingChoice REPEAT_CHOICES[]  = { {"on", 1}, {"off", 0} };
+const SettingChoice PRESSED_CHOICES[] = { {"fast", LED_FAST}, {"on", LED_ON}, {"slow", LED_SLOW}, {"off", LED_OFF} };
+const SettingChoice IDLE_CHOICES[]    = { {"breathe", LED_BREATHE}, {"fast", LED_FAST}, {"slow", LED_SLOW}, {"off", LED_OFF} };
+
+#define COUNT_OF(a) (sizeof(a) / sizeof((a)[0]))
+const SettingDef SETTINGS[] = {
+  { "edge",    "trig_edge",   &trigEdge,   EDGE_CHOICES,    COUNT_OF(EDGE_CHOICES)    },
+  { "repeat",  "trig_repeat", &trigRepeat, REPEAT_CHOICES,  COUNT_OF(REPEAT_CHOICES)  },
+  { "pressed", "led_pressed", &ledPressed, PRESSED_CHOICES, COUNT_OF(PRESSED_CHOICES) },
+  { "idle",    "led_idle",    &ledIdle,    IDLE_CHOICES,    COUNT_OF(IDLE_CHOICES)    },
+};
 
 // ─── WebSocket server (only for WiFi mode) ─────────────────────────────────
 #if WIFI_ENABLED
@@ -238,10 +330,20 @@ Button        triggerBtn     = { TRIGGER_BTN_PIN, false, 0 };
 Button        keyBtn         = { KEY_BTN_PIN,     false, 0 };
 int           seqCounter     = 0;
 bool          pendingPress   = false;   // trigger/BOOT press during the boot USB wait; sent once the path is known
+bool          pendingHold    = false;   // ...and whether it asked to hold the key
 
-// HID output: the host sees one key at a time. A local press holds its key until
-// both buttons are up and cuts a relayed tap short; relayed taps queue behind it.
-char          hidLocalKey    = 0;       // key held for a local button; 0 = none
+// BOOT hold towards settings mode. Tracked from a press edge only, so a BOOT
+// still held through a restart never counts.
+bool          keyHoldTracked = false;
+unsigned long keyHoldStartMs = 0;
+char          keyBeforeHold  = DEFAULT_KEY;  // restored when the hold enters settings mode
+
+// HID output: the host sees one key at a time. A local press is either held
+// while the trigger is down (repeat) or a HID_HOLD_MS tap, and cuts a relayed
+// tap short; relayed taps queue behind it.
+char          hidLocalKey    = 0;       // key of the local press in progress; 0 = none
+bool          hidLocalHold   = false;   // held until the trigger is up, else a tap
+unsigned long hidLocalPressMs = 0;
 char          hidSentKey     = 0;       // key in the last report sent; 0 = all up. A release is owed while set
 char          relayKey       = 0;       // relayed tap in progress; 0 = none
 unsigned long relayPressMs   = 0;
@@ -252,14 +354,16 @@ int           relayTapCount  = 0;
 
 // Status LED
 bool          statusLedReady   = false;
-bool          ledFastActive    = false;
-unsigned long ledPhaseStartMs  = 0;       // start of the current fast or idle cycle
+uint8_t       ledShownPattern  = LED_OFF; // pattern being shown; a change restarts its cycle
+unsigned long ledPhaseStartMs  = 0;       // start of the current pattern cycle
 uint32_t      ledLastDuty      = 0xFFFFFFFFUL;
 
 // RGB status LED: blink phase, press feedback, write cache
 unsigned long lastBlinkMs    = 0;
 bool          blinkPhase     = false;
 bool          pressDelivered = false;   // white (delivered) vs red (not delivered) while a button is held
+unsigned long pressFeedbackUntilMs = 0; // edge=release: feedback shown until then
+unsigned long lastRainbowMs  = 0;
 uint32_t      rgbShown       = 0xFFFFFFFFUL;  // last packed colour written; invalid until first write
 
 // USB host tracking (polled from TinyUSB in handleHostEnumeration())
@@ -337,18 +441,20 @@ bool sendKeyReport(char key) {
   if (key && !buildKeyReport(key, report)) return false;
   // A key-down that times out may still reach the host, so a release is owed from the attempt on.
   if (key) hidSentKey = key;
-  if (!HID.SendReport(HID_REPORT_ID_KEYBOARD, &report, sizeof(report))) return false;
+  if (!hid->SendReport(HID_REPORT_ID_KEYBOARD, &report, sizeof(report))) return false;
   hidSentKey = key;
   return true;
 }
 
-// Press a local key now; handleHidOutput() releases it once both buttons are up.
-// A key still down is released first so the host always sees a fresh key-down,
-// even when the same key is pressed twice.
-bool hidPress(char key) {
+// Press a local key now. handleHidOutput() releases it when the trigger is up
+// (hold) or after HID_HOLD_MS (tap). A key still down is released first so the
+// host always sees a fresh key-down, even when the same key is pressed twice.
+bool hidPress(char key, bool hold) {
   if (!usbHostReady) return false;
-  relayKey    = 0;
-  hidLocalKey = key;
+  relayKey        = 0;
+  hidLocalKey     = key;
+  hidLocalHold    = hold;
+  hidLocalPressMs = millis();
   if (hidSentKey) sendKeyReport(0);
   return sendKeyReport(key);
 }
@@ -362,11 +468,14 @@ void queueRelayTap(char key) {
   relayTapCount++;
 }
 
-// Brings the host's key state to what it should be: the local key while a button
-// is held, otherwise the current relayed tap, otherwise all keys up. Retried every
+// Brings the host's key state to what it should be: the local press while it
+// lasts, otherwise the current relayed tap, otherwise all keys up. Retried every
 // loop until it lands: a lost release would leave the key auto-repeating on the host.
 void handleHidOutput() {
-  if (hidLocalKey && !triggerBtn.pressed && !keyBtn.pressed) hidLocalKey = 0;
+  if (hidLocalKey && (hidLocalHold ? !triggerBtn.pressed
+                                   : millis() - hidLocalPressMs >= HID_HOLD_MS)) {
+    hidLocalKey = 0;
+  }
 
   if (!hidLocalKey) {
     if (relayKey && hidSentKey == relayKey && millis() - relayPressMs >= HID_HOLD_MS) relayKey = 0;
@@ -519,7 +628,7 @@ void broadcastCredentials() {
 
   EspNowCredPacket pkt;
   if (!encryptCredentials(wifiSSID, wifiPass, apChannel, pkt)) {
-    if ((bool)Serial) Serial.println("ERR:ESPNOW_ENCRYPT_FAILED");
+    if ((bool)Cdc) Cdc.println("ERR:ESPNOW_ENCRYPT_FAILED");
     startWiFi(wifiSSID, wifiPass);
     return;
   }
@@ -574,8 +683,8 @@ void onWsEvent(AsyncWebSocket       *server,
       if (currentState == STATE_WS_READY && ws.count() <= 1) setState(STATE_WS_WAITING);
       break;
     case WS_EVT_ERROR:
-      if ((bool)Serial) {
-        Serial.printf("ERR:WS id=%u ts=%lu\n", client->id(), millis());
+      if ((bool)Cdc) {
+        Cdc.printf("ERR:WS id=%u ts=%lu\n", client->id(), millis());
       }
       break;
     case WS_EVT_DATA: {
@@ -708,7 +817,7 @@ void sendWsMessage(const char *msg) {
   if (currentState != STATE_WS_READY || ws.count() == 0) return;
   uint32_t freeHeap = ESP.getFreeHeap();
   if (freeHeap < 20000) {
-    if ((bool)Serial) Serial.printf("ERR:LOW_HEAP heap=%u\n", freeHeap);
+    if ((bool)Cdc) Cdc.printf("ERR:LOW_HEAP heap=%u\n", freeHeap);
     return;
   }
   ws.textAll(msg);
@@ -1054,13 +1163,44 @@ bool blinkEvery(unsigned long periodMs) {
   return blinkPhase;
 }
 
+// Colour wheel at full saturation and brightness; pos runs 0..1535 (six 256-step ramps).
+RGB colorWheel(uint16_t pos) {
+  uint8_t f = pos & 0xFF;
+  switch (pos >> 8) {
+    case 0:  return {255,           f,             0            };
+    case 1:  return {(uint8_t)~f,   255,           0            };
+    case 2:  return {0,             255,           f            };
+    case 3:  return {0,             (uint8_t)~f,   255          };
+    case 4:  return {f,             0,             255          };
+    default: return {255,           0,             (uint8_t)~f  };
+  }
+}
+
+// True while the RGB LED should show white/red press feedback. A trigger set to
+// type on release has sent nothing while held, so it gets a short flash after
+// the release instead. BOOT counts from its press edge (keyHoldTracked), not
+// while still held through a restart.
+bool pressFeedbackActive(unsigned long now) {
+  bool trigger = triggerBtn.pressed && trigEdge == EDGE_PRESS;
+  return trigger || keyHoldTracked || (long)(pressFeedbackUntilMs - now) > 0;
+}
+
 // Shows the state colour, with press feedback on top while a button is held.
 void handleStatusRgb() {
   unsigned long now = millis();
 
+  // Settings mode: the rainbow, whatever else happens
+  if (settingsMode) {
+    if (now - lastRainbowMs < RAINBOW_FRAME_MS) return;
+    lastRainbowMs = now;
+    unsigned long t = (now - settingsStartMs) % RAINBOW_PERIOD_MS;
+    showStatus(colorWheel((RAINBOW_START_POS + t * 1536 / RAINBOW_PERIOD_MS) % 1536));
+    return;
+  }
+
   // Button press feedback: white = delivered, red = nowhere to go. During the
   // boot window the press is still pending, so booting stays visible.
-  if ((triggerBtn.pressed || keyBtn.pressed) && !usbWaitActive) {
+  if (pressFeedbackActive(now) && !usbWaitActive) {
     showStatus(pressDelivered ? COLOR_WHITE : COLOR_RED);
     return;
   }
@@ -1128,6 +1268,142 @@ void handleStatusRgb() {
   }
 }
 
+// ─── Serial line reader (non-blocking) ─────────────────────────────────────
+// Collects newline-terminated lines from Cdc and hands each to onLine.
+void readSerialLines(void (*onLine)(const char *)) {
+  while (Cdc.available()) {
+    char c = (char)Cdc.read();
+    if (c == '\n' || c == '\r') {
+      if (serialLineBufLen > 0) {
+        serialLineBuf[serialLineBufLen] = '\0';
+        onLine(serialLineBuf);
+        serialLineBufLen = 0;
+      }
+    } else {
+      if (serialLineBufLen < 256) {
+        serialLineBuf[serialLineBufLen++] = c;
+      } else {
+        serialLineBufLen = 0;
+        if ((bool)Cdc) Cdc.println("ERR:SERIAL_OVERFLOW");
+      }
+    }
+  }
+}
+
+// ─── User settings ─────────────────────────────────────────────────────────
+const SettingDef *findSetting(const char *name) {
+  for (const SettingDef &s : SETTINGS) {
+    if (strcmp(s.name, name) == 0) return &s;
+  }
+  return nullptr;
+}
+
+const SettingChoice *findChoice(const SettingDef &s, const char *name) {
+  for (uint8_t i = 0; i < s.count; i++) {
+    if (strcmp(s.choices[i].name, name) == 0) return &s.choices[i];
+  }
+  return nullptr;
+}
+
+const char *currentChoiceName(const SettingDef &s) {
+  for (uint8_t i = 0; i < s.count; i++) {
+    if (s.choices[i].value == *s.value) return s.choices[i].name;
+  }
+  return s.choices[0].name;
+}
+
+// Reads every setting from prefs (already open). A missing or unknown stored
+// value falls back to the default.
+void loadSettings() {
+  for (const SettingDef &s : SETTINGS) {
+    uint8_t stored = prefs.getUChar(s.nvsKey, s.choices[0].value);
+    *s.value = s.choices[0].value;
+    for (uint8_t i = 0; i < s.count; i++) {
+      if (s.choices[i].value == stored) *s.value = stored;
+    }
+  }
+}
+
+// Saves and applies one setting. Returns false (setting unchanged) if NVS fails.
+bool saveSetting(const SettingDef &s, uint8_t value) {
+  prefs.begin("remote", false);
+  size_t written = prefs.putUChar(s.nvsKey, value);
+  prefs.end();
+  if (written == 0) return false;
+  *s.value = value;
+  return true;
+}
+
+// The settings, then the selected key (read-only here; BOOT changes it).
+void printSettings() {
+  Cdc.print("SETTINGS:");
+  for (size_t i = 0; i < COUNT_OF(SETTINGS); i++) {
+    Cdc.printf("%s=%s,", SETTINGS[i].name, currentChoiceName(SETTINGS[i]));
+  }
+  Cdc.printf("key=%c\n", hidKey);
+}
+
+// ─── Settings protocol (settings mode) ─────────────────────────────────────
+// The mode flag was cleared when settings mode started, so a restart is normal mode.
+void restartToNormalMode() {
+  if ((bool)Cdc) {
+    Cdc.println("REBOOTING...");
+    Cdc.flush();
+  }
+  delay(100);
+  ESP.restart();
+}
+
+void parseSettingsLine(const char *line) {
+  if (strcmp(line, "GET") == 0) {
+    printSettings();
+    return;
+  }
+
+  if (strncmp(line, "SET:", 4) == 0) {
+    const char *eq = strchr(line + 4, '=');
+    char name[16];
+    size_t nameLen = eq ? (size_t)(eq - (line + 4)) : 0;
+    if (!eq || nameLen == 0 || nameLen >= sizeof(name)) {
+      Cdc.println("ERR:SET_PARSE — expected SET:name=value");
+      return;
+    }
+    memcpy(name, line + 4, nameLen);
+    name[nameLen] = '\0';
+    const SettingDef *s = findSetting(name);
+    if (!s) {
+      Cdc.printf("ERR:UNKNOWN_SETTING:%s\n", name);
+      return;
+    }
+    const SettingChoice *c = findChoice(*s, eq + 1);
+    if (!c) {
+      Cdc.printf("ERR:INVALID_VALUE:%s=%s\n", name, eq + 1);
+      return;
+    }
+    if (!saveSetting(*s, c->value)) {
+      Cdc.printf("ERR:SAVE_FAILED:%s\n", name);
+      return;
+    }
+    Cdc.printf("OK:%s=%s\n", s->name, c->name);
+    return;
+  }
+
+  if (strcmp(line, "DEFAULTS") == 0) {
+    bool ok = true;
+    for (const SettingDef &s : SETTINGS) ok &= saveSetting(s, s.choices[0].value);
+    if (!ok) Cdc.println("ERR:SAVE_FAILED:defaults");
+    printSettings();
+    return;
+  }
+
+  if (strcmp(line, "REBOOT") == 0) {
+    restartToNormalMode();
+    return;
+  }
+
+  Cdc.printf("ERR:UNKNOWN_COMMAND:%s\n", line);
+}
+
 #if WEB_SERIAL_ENABLED
 // ─── Serial line parser ─────────────────────────────────────────────────────
 void parseSerialLine(const char *line) {
@@ -1137,7 +1413,7 @@ void parseSerialLine(const char *line) {
   if (strncmp(line, "WIFI:", 5) == 0) {
     const char *sep = strchr(line + 5, ':');
     if (!sep) {
-      if ((bool)Serial) Serial.println("ERR:WIFI_PARSE_NO_SSID");
+      if ((bool)Cdc) Cdc.println("ERR:WIFI_PARSE_NO_SSID");
       return;
     }
     // Construct Strings for WiFi creds (rare command, String is acceptable)
@@ -1154,9 +1430,9 @@ void parseSerialLine(const char *line) {
     prefs.end();
     if (wifiAutoStarted && (currentState == STATE_WS_READY || currentState == STATE_WS_WAITING) && WiFi.status() == WL_CONNECTED) {
       LOG_PRINTLN("LOG:WIFI_ALREADY_UP — skipping reconnect");
-      if ((bool)Serial) {
-        Serial.printf("WIFI_CONNECTED:%s\n", WiFi.localIP().toString().c_str());
-        Serial.printf("WS_STARTED:ws://%s\n", WiFi.localIP().toString().c_str());
+      if ((bool)Cdc) {
+        Cdc.printf("WIFI_CONNECTED:%s\n", WiFi.localIP().toString().c_str());
+        Cdc.printf("WS_STARTED:ws://%s\n", WiFi.localIP().toString().c_str());
       }
       wifiAutoStarted = false;
       return;
@@ -1178,7 +1454,7 @@ void parseSerialLine(const char *line) {
     prefs.end();
     wifiSSID = "";
     wifiPass = "";
-    Serial.println("WIFI_CLEARED");
+    Cdc.println("WIFI_CLEARED");
     return;
   }
 #endif // WIFI_ENABLED
@@ -1190,9 +1466,9 @@ void parseSerialLine(const char *line) {
       prefs.begin("remote", false);
       prefs.putUChar("hid_key", (uint8_t)newKey);
       prefs.end();
-      Serial.printf("KEY_SAVED:%c — send REBOOT to apply\n", newKey);
+      Cdc.printf("KEY_SAVED:%c — send REBOOT to apply\n", newKey);
     } else {
-      Serial.println("ERR:KEY_INVALID — must be a single letter or digit");
+      Cdc.println("ERR:KEY_INVALID — must be a single letter or digit");
     }
     return;
   }
@@ -1201,25 +1477,25 @@ void parseSerialLine(const char *line) {
     prefs.begin("remote", false);
     prefs.remove("hid_key");
     prefs.end();
-    Serial.println("KEY_CLEARED — send REBOOT to apply");
+    Cdc.println("KEY_CLEARED — send REBOOT to apply");
     return;
   }
 
   if (strcmp(line, "DIAG") == 0) {
-    Serial.printf("DIAG:cpu_mhz=%d\n", getCpuFrequencyMhz());
-    Serial.printf("DIAG:heap_free=%u\n", ESP.getFreeHeap());
+    Cdc.printf("DIAG:cpu_mhz=%d\n", getCpuFrequencyMhz());
+    Cdc.printf("DIAG:heap_free=%u\n", ESP.getFreeHeap());
     wifi_ps_type_t psType;
     esp_wifi_get_ps(&psType);
-    Serial.printf("DIAG:wifi_ps=%s\n",
+    Cdc.printf("DIAG:wifi_ps=%s\n",
                    psType == WIFI_PS_NONE ? "NONE" :
                    psType == WIFI_PS_MIN_MODEM ? "MIN_MODEM" :
                    psType == WIFI_PS_MAX_MODEM ? "MAX_MODEM" : "UNKNOWN");
-    Serial.printf("DIAG:uptime_s=%lu\n", millis() / 1000);
+    Cdc.printf("DIAG:uptime_s=%lu\n", millis() / 1000);
     return;
   }
 
   if (strcmp(line, "REBOOT") == 0) {
-    Serial.println("REBOOTING...");
+    Cdc.println("REBOOTING...");
     delay(100);
     ESP.restart();
     return;
@@ -1228,7 +1504,7 @@ void parseSerialLine(const char *line) {
 
 // ─── Serial handler (non-blocking line reader) ─────────────────────────────
 void handleSerial() {
-  bool serialPortOpen = (bool)Serial && usbHostReady;
+  bool serialPortOpen = (bool)Cdc && usbHostReady;
 
   if (serialPortOpen && !serialWasOpen) {
     serialWasOpen = true;
@@ -1239,22 +1515,22 @@ void handleSerial() {
     if (currentState == STATE_BOOT_OK || currentState == STATE_USB_HOST || currentState == STATE_RELAY_READY) {
       setState(STATE_SERIAL_CONNECTED);
     }
-    Serial.println("READY");
-    Serial.printf("CONFIG:key=%c\n", hidKey);
-    if (usbHostSeen) Serial.println("PRIMARY");
+    Cdc.println("READY");
+    Cdc.printf("CONFIG:key=%c\n", hidKey);
+    if (usbHostSeen) Cdc.println("PRIMARY");
     LOG_PRINTF("LOG:SERIAL_OPEN ts=%lu heap=%u\n", millis(), ESP.getFreeHeap());
 #else
     if (currentState == STATE_BOOT_OK) {
       setState(STATE_SERIAL_CONNECTED);
     }
-    Serial.println("READY");
-    Serial.printf("CONFIG:key=%c\n", hidKey);
+    Cdc.println("READY");
+    Cdc.printf("CONFIG:key=%c\n", hidKey);
     LOG_PRINTF("LOG:SERIAL_OPEN ts=%lu heap=%u\n", millis(), ESP.getFreeHeap());
     if (currentState == STATE_WIFI_CONNECTING) {
-      Serial.println("WIFI_CONNECTING");
+      Cdc.println("WIFI_CONNECTING");
     } else if (currentState == STATE_WS_READY || currentState == STATE_WS_WAITING) {
-      Serial.printf("WIFI_CONNECTED:%s\n", WiFi.localIP().toString().c_str());
-      Serial.printf("WS_STARTED:ws://%s\n", WiFi.localIP().toString().c_str());
+      Cdc.printf("WIFI_CONNECTED:%s\n", WiFi.localIP().toString().c_str());
+      Cdc.printf("WS_STARTED:ws://%s\n", WiFi.localIP().toString().c_str());
     }
 #endif
 
@@ -1274,23 +1550,7 @@ void handleSerial() {
 #endif
   }
 
-  while (Serial.available()) {
-    char c = (char)Serial.read();
-    if (c == '\n' || c == '\r') {
-      if (serialLineBufLen > 0) {
-        serialLineBuf[serialLineBufLen] = '\0';
-        parseSerialLine(serialLineBuf);
-        serialLineBufLen = 0;
-      }
-    } else {
-      if (serialLineBufLen < 256) {
-        serialLineBuf[serialLineBufLen++] = c;
-      } else {
-        serialLineBufLen = 0;
-        if ((bool)Serial) Serial.println("ERR:SERIAL_OVERFLOW");
-      }
-    }
-  }
+  readSerialLines(parseSerialLine);
 }
 
 #endif // WEB_SERIAL_ENABLED
@@ -1298,18 +1558,18 @@ void handleSerial() {
 // ─── Key delivery (trigger and BOOT presses) ─────────────────────────────────
 // Hosted → HID keystroke, before anything else. Never hosted → ESP-NOW to the primary.
 // The RGB LED shows white while the button is held if the key went out, red if
-// it had nowhere to go.
-void sendSelectedKey() {
+// it had nowhere to go. hold: keep the HID key down while the trigger is (else a tap).
+void sendSelectedKey(bool hold) {
   bool routed = false;
 
   // 1. USB HID — first, ahead of every other channel. Preempts any relayed tap.
   if (usbHostReady) {
-    routed = hidPress(hidKey);
+    routed = hidPress(hidKey, hold);
   }
 
   seqCounter++;
   LOG_PRINTF("LOG:BTN seq=%d hid=%d ts=%lu\n", seqCounter, (int)routed, millis());
-  if (usbHostSeen && !routed && (bool)Serial) Serial.println("ERR:HID_NOT_DELIVERED");
+  if (usbHostSeen && !routed && (bool)Cdc) Cdc.println("ERR:HID_NOT_DELIVERED");
   char btnMsg[2] = { hidKey, '\0' };
 
   // 2. Serial (CDC) notification
@@ -1339,10 +1599,14 @@ void sendSelectedKey() {
   pressDelivered = routed;
 }
 
-// Send now, or hold the press until the boot USB wait knows the delivery path.
-void keyPressed() {
-  if (usbWaitActive) pendingPress = true;
-  else               sendSelectedKey();
+// Send now, or keep the press until the boot USB wait knows the delivery path.
+void keyPressed(bool hold) {
+  if (usbWaitActive) {
+    pendingPress = true;
+    pendingHold  = hold;
+  } else {
+    sendSelectedKey(hold);
+  }
 }
 
 // ─── Key-select mode ─────────────────────────────────────────────────────────
@@ -1360,7 +1624,7 @@ void saveHidKey() {
   size_t written = prefs.putUChar("hid_key", (uint8_t)hidKey);
   prefs.end();
   if (written == 0) {
-    if ((bool)Serial) Serial.println("ERR:KEY_SAVE_FAILED");
+    if ((bool)Cdc) Cdc.println("ERR:KEY_SAVE_FAILED");
     return;
   }
   LOG_PRINTF("LOG:KEYSEL_SAVED key=%c ts=%lu\n", hidKey, millis());
@@ -1376,36 +1640,42 @@ void writeStatusLed(uint32_t duty) {
 void initStatusLed() {
   statusLedReady = ledcAttach(STATUS_LED_PIN, STATUS_LED_PWM_HZ, STATUS_LED_PWM_BITS);
   if (!statusLedReady) {
-    if ((bool)Serial) Serial.println("ERR:STATUS_LED_PWM_INIT");
+    if ((bool)Cdc) Cdc.println("ERR:STATUS_LED_PWM_INIT");
     return;
   }
   ledPhaseStartMs = millis();
   writeStatusLed(0);
 }
 
-// Fast blink while the trigger or BOOT is held, idle breathing otherwise. Each
-// switch restarts the cycle, so the blink starts lit and the breathing starts dark.
+// Duty for a pattern t ms into its cycle. Blinks start lit, breathing starts dark.
+uint32_t ledPatternDuty(uint8_t pattern, unsigned long t) {
+  switch (pattern) {
+    case LED_FAST: return (t % LED_FAST_PERIOD_MS) < LED_FAST_PERIOD_MS / 2 ? STATUS_LED_MAX_DUTY : 0;
+    case LED_SLOW: return (t % LED_SLOW_PERIOD_MS) < LED_SLOW_PERIOD_MS / 2 ? STATUS_LED_MAX_DUTY : 0;
+    case LED_ON:   return (t % LED_FLICKER_PERIOD_MS) < LED_FLICKER_PERIOD_MS / 2 ? STATUS_LED_MAX_DUTY : 0;
+    case LED_BREATHE: {
+      // Raised-cosine over the whole period (no dark pause), squared for
+      // perceptually even brightness.
+      float x      = (float)(t % LED_BREATHE_PERIOD_MS) / LED_BREATHE_PERIOD_MS;
+      float breath = 0.5f - 0.5f * cosf(2.0f * PI * x);
+      return (uint32_t)(breath * breath * STATUS_LED_MAX_DUTY);
+    }
+    default:       return 0;
+  }
+}
+
+// The "pressed" pattern while the trigger or BOOT is held, the "idle" pattern
+// otherwise. A pattern change restarts its cycle.
 void handleStatusLed() {
   if (!statusLedReady) return;
   unsigned long now = millis();
 
-  bool fast = triggerBtn.pressed || keyBtn.pressed;
-  if (fast != ledFastActive) {
-    ledFastActive   = fast;
+  uint8_t pattern = (triggerBtn.pressed || keyBtn.pressed) ? ledPressed : ledIdle;
+  if (pattern != ledShownPattern) {
+    ledShownPattern = pattern;
     ledPhaseStartMs = now;
   }
-  unsigned long t = now - ledPhaseStartMs;
-
-  if (ledFastActive) {
-    writeStatusLed((t % LED_FAST_PERIOD_MS) < LED_FAST_PERIOD_MS / 2 ? STATUS_LED_MAX_DUTY : 0);
-    return;
-  }
-
-  // Idle: raised-cosine breathing over the whole LED_IDLE_PERIOD_MS (no dark
-  // pause), squared for perceptually even brightness. Starts dark.
-  float x      = (float)(t % LED_IDLE_PERIOD_MS) / LED_IDLE_PERIOD_MS;
-  float breath = 0.5f - 0.5f * cosf(2.0f * PI * x);
-  writeStatusLed((uint32_t)(breath * breath * STATUS_LED_MAX_DUTY));
+  writeStatusLed(ledPatternDuty(pattern, now - ledPhaseStartMs));
 }
 
 // ─── Button polling ────────────────────────────────────────────────────────
@@ -1420,21 +1690,65 @@ ButtonEdge pollButton(Button &btn, unsigned long now) {
 }
 
 // ─── Trigger button ────────────────────────────────────────────────────────
-// Key goes down on press; handleHidOutput() releases it once the button is up.
+// edge=press: types on press, held while the button is if repeat is on
+// (handleHidOutput() releases it), else a tap. edge=release: a tap on release.
+enum TriggerAction { TRIG_NONE, TRIG_HOLD, TRIG_TAP };
+
+TriggerAction triggerAction(ButtonEdge edge) {
+  if (trigEdge == EDGE_RELEASE) return edge == BTN_RELEASED ? TRIG_TAP : TRIG_NONE;
+  if (edge == BTN_PRESSED)      return trigRepeat ? TRIG_HOLD : TRIG_TAP;
+  return TRIG_NONE;
+}
+
 void handleTriggerButton() {
-  if (pollButton(triggerBtn, millis()) == BTN_PRESSED) keyPressed();
+  TriggerAction action = triggerAction(pollButton(triggerBtn, millis()));
+  if (action == TRIG_NONE) return;
+  keyPressed(action == TRIG_HOLD);
+  if (trigEdge == EDGE_RELEASE) pressFeedbackUntilMs = millis() + PRESS_FEEDBACK_MS;
+}
+
+// ─── Settings mode switch ──────────────────────────────────────────────────
+// Sets the NVS flag that setup() reads (and clears) at the next boot, then restarts.
+void restartIntoSettingsMode() {
+  prefs.begin("remote", false);
+  size_t written = prefs.putUChar("settings", 1);
+  prefs.end();
+  if (written == 0) {
+    if ((bool)Cdc) Cdc.println("ERR:SETTINGS_FLAG_SAVE_FAILED");
+    return;
+  }
+  LOG_PRINTF("LOG:SETTINGS_RESTART ts=%lu\n", millis());
+  ESP.restart();
 }
 
 // ─── BOOT button: key selection ────────────────────────────────────────────
-// Each press steps to the next key, applies it at once, types it like a
-// trigger press and saves it.
+// Each press steps to the next key, applies it at once, types it as a tap and
+// saves it. Held for SETTINGS_HOLD_MS, the key steps back and the unit restarts
+// into settings mode.
 void handleKeyButton() {
-  if (pollButton(keyBtn, millis()) != BTN_PRESSED) return;
-  hidKey = nextKeyChar(hidKey);
-  LOG_PRINTF("LOG:KEYSEL key=%c ts=%lu\n", hidKey, millis());
-  PROTO_PRINTF("CONFIG:key=%c\n", hidKey);
-  keyPressed();
-  saveHidKey();
+  unsigned long now = millis();
+  ButtonEdge edge = pollButton(keyBtn, now);
+
+  if (edge == BTN_PRESSED) {
+    keyBeforeHold  = hidKey;
+    keyHoldStartMs = now;
+    keyHoldTracked = true;
+    hidKey = nextKeyChar(hidKey);
+    LOG_PRINTF("LOG:KEYSEL key=%c ts=%lu\n", hidKey, now);
+    PROTO_PRINTF("CONFIG:key=%c\n", hidKey);
+    keyPressed(false);
+    saveHidKey();
+  } else if (edge == BTN_RELEASED) {
+    keyHoldTracked = false;
+  }
+
+  if (keyHoldTracked && now - keyHoldStartMs >= SETTINGS_HOLD_MS) {
+    keyHoldTracked = false;
+    hidKey = keyBeforeHold;
+    PROTO_PRINTF("CONFIG:key=%c\n", hidKey);
+    saveHidKey();
+    restartIntoSettingsMode();
+  }
 }
 
 // ─── ESP-NOW initialization ─────────────────────────────────────────────────
@@ -1445,7 +1759,7 @@ void initEspNow() {
   esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
 
   if (esp_now_init() != ESP_OK) {
-    if ((bool)Serial) Serial.println("ERR:ESPNOW_INIT_FAILED");
+    if ((bool)Cdc) Cdc.println("ERR:ESPNOW_INIT_FAILED");
     setState(STATE_ERROR);
     return;
   }
@@ -1483,14 +1797,20 @@ void setup() {
   // 1. RGB status LED
   showStatus(COLOR_OFF);
 
-  // 2. Buttons + external status LED
+  // 2. Buttons. BOOT can only be down at boot after a software restart (at power-up
+  //    it selects download mode), i.e. still held from the press that restarted us:
+  //    start it pressed so that press is not taken as a new one.
   pinMode(TRIGGER_BTN_PIN, INPUT_PULLUP);
   pinMode(KEY_BTN_PIN, INPUT_PULLUP);
-  initStatusLed();
+  keyBtn.pressed = digitalRead(KEY_BTN_PIN) == LOW;
 
-  // 3. USB composite device setup — ORDER IS CRITICAL
-  prefs.begin("remote", true);
+  // 3. Stored key, settings and mode flag. The flag is cleared at once, so any
+  //    later restart, RESET or power cycle comes back in normal mode.
+  prefs.begin("remote", false);
   hidKey = (char)prefs.getUChar("hid_key", DEFAULT_KEY);
+  loadSettings();
+  settingsMode = prefs.getUChar("settings", 0) == 1;
+  if (settingsMode) prefs.remove("settings");
 #if WIFI_ENABLED
   String wifiSSID_stored = prefs.getString("wifi_ssid", "");
   String wifiPass_stored = prefs.getString("wifi_pass", "");
@@ -1500,22 +1820,38 @@ void setup() {
   hidKey = toLowerCase(hidKey);   // keys saved upper case by earlier firmware
   saveHidKey();
 
-  Keyboard.begin();
-  Serial.begin(115200);
+  // 4. External status LED (uses the settings)
+  initStatusLed();
+
+  // 5. USB device setup — ORDER IS CRITICAL: every interface must be registered
+  //    before USB.begin(). Settings mode leaves the keyboard out.
+  if (!settingsMode) {
+    keyboard = new USBHIDKeyboard();
+    hid      = new USBHID();
+    keyboard->begin();
+  }
+  Cdc.begin(115200);
   USB.manufacturerName("Andrey");
   char productName[32];
-  snprintf(productName, sizeof(productName), "Zero Remote [%c]", hidKey);
+  if (settingsMode) snprintf(productName, sizeof(productName), "USB Button");
+  else              snprintf(productName, sizeof(productName), "Zero Remote [%c]", hidKey);
   USB.productName(productName);
   USB.begin();
 
-  // 4. Enumeration is tracked in loop() (handleHostEnumeration) — no blocking
+  // Settings mode: no keyboard, radio or host tracking — see loopSettingsMode()
+  if (settingsMode) {
+    settingsStartMs = millis();
+    return;
+  }
+
+  // 6. Enumeration is tracked in loop() (handleHostEnumeration) — no blocking
   //    wait, so the trigger is live from the first loop pass.
   usbWaitStartMs = millis();
 
-  // 5. Boot-OK state
+  // 7. Boot-OK state
   setState(STATE_BOOT_OK);
 
-  // 6. Create FreeRTOS queues + Initialize ESP-NOW
+  // 8. Create FreeRTOS queues + Initialize ESP-NOW
 #if !WIFI_ENABLED
   relayRxQueue    = xQueueCreate(8, sizeof(RelayRxItem));
   announceRxQueue = xQueueCreate(4, sizeof(AnnounceRxItem));
@@ -1525,7 +1861,7 @@ void setup() {
   initEspNow();
 
 #if WIFI_ENABLED
-  // 7. Auto-connect to WiFi if credentials saved
+  // 9. Auto-connect to WiFi if credentials saved
   if (wifiSSID_stored.length() > 0) {
     wifiSSID = wifiSSID_stored;
     wifiPass = wifiPass_stored;
@@ -1587,15 +1923,42 @@ void handleHostEnumeration() {
     usbWaitActive = false;
     if (pendingPress) {
       pendingPress = false;
-      sendSelectedKey();
+      sendSelectedKey(pendingHold && triggerBtn.pressed);   // a hold only while still held
     }
   }
+}
+
+// ─── Settings mode trigger test ────────────────────────────────────────────
+// The trigger doesn't type in settings mode. The settings page shows what it
+// would type instead: the button's edges, and what the current settings make
+// of them (a held key, which the computer repeats until TRIGGER:up, or a tap).
+void reportTriggerTest(ButtonEdge edge) {
+  if (edge == BTN_NONE || !(bool)Cdc) return;
+  Cdc.println(edge == BTN_PRESSED ? "TRIGGER:down" : "TRIGGER:up");
+  TriggerAction action = triggerAction(edge);
+  if (action != TRIG_NONE) Cdc.println(action == TRIG_HOLD ? "TYPE:hold" : "TYPE:tap");
+}
+
+// ─── Settings mode loop ────────────────────────────────────────────────────
+// The trigger only previews the status LED and reports to the settings page; a new BOOT press restarts into
+// normal mode (the BOOT press that entered settings mode is still marked pressed).
+void loopSettingsMode() {
+  unsigned long now = millis();
+  reportTriggerTest(pollButton(triggerBtn, now));
+  if (pollButton(keyBtn, now) == BTN_PRESSED) restartToNormalMode();
+  readSerialLines(parseSettingsLine);
+  handleStatusRgb();
+  handleStatusLed();
 }
 
 // ─── loop() ────────────────────────────────────────────────────────────────
 // Host state is refreshed first and the trigger is read before any relay or
 // display work, so a local press reaches HID ahead of everything else.
 void loop() {
+  if (settingsMode) {
+    loopSettingsMode();
+    return;
+  }
   handleHostEnumeration();
   handleTriggerButton();
   handleHidOutput();

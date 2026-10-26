@@ -8,7 +8,7 @@ Android with no drivers or software. Phones and tablets need a USB-C port or a U
 adapter.
 
 Holding the trigger works like holding a key on a keyboard: the computer starts
-repeating the key after a short delay.
+repeating the key after a short delay. You can change this in the [settings](#settings).
 
 ## Wireless buttons
 
@@ -27,11 +27,35 @@ There are 36 keys to choose from: the letters a–z (typed in lower case) and th
 0–9. The default key is `1`.
 
 Press the small **BOOT** button on the board to step to the next key: a, b, c … z, then
-0, 1 … 9, then back to a. Each press types the new key straight away, so you can see
-which one is selected in any text field. The button remembers its key when unplugged.
+0, 1 … 9, then back to a. Each press types the new key once, straight away, so you can
+see which one is selected in any text field. The button remembers its key when unplugged.
 
 Don't hold BOOT while plugging the button in: that puts the board into firmware-update
 mode. Unplug it and plug it back in to recover.
+
+## Settings
+
+You can change how the trigger and its light behave from a settings page in Chrome or
+Edge on a computer.
+
+1. Plug the button into the computer.
+2. Hold **BOOT** for 3 seconds. The button restarts and its status light cycles through
+   all colours. The selected key doesn't change.
+3. Open the settings page, click **Connect** and choose **USB Button**.
+
+| Setting | Choices (default first) |
+|---|---|
+| Trigger types the key | When pressed, when released |
+| Trigger held down | Repeats the key, types it once (a key typed on release is always typed once) |
+| Trigger light while a button is pressed | Fast blink, on, slow blink, off |
+| Trigger light when idle | Breathing, fast blink, slow blink, off |
+
+Each change is saved on the button straight away. While the button is in settings mode
+it doesn't type: pressing the trigger shows its light, and the settings page shows what
+your computer would receive.
+
+To go back to normal use, click **Exit settings**, press **BOOT** or **RESET**, or unplug
+the button and plug it back in.
 
 ## Hardware requirements
 
@@ -58,6 +82,9 @@ A wireless button can use any USB charger rated 5 V, 500 mA or more.
 | 🔴 Red, blinking | Fault: unplug and plug back in |
 | ⚪ White while a button is held | The key press was delivered |
 | 🔴 Red while a button is held | The key press could not be delivered |
+| 🌈 Cycling through all colours | Settings mode |
+
+If the trigger is set to type when released, white or red shows briefly after you let go.
 
 **Trigger light**
 
@@ -65,3 +92,5 @@ A wireless button can use any USB charger rated 5 V, 500 mA or more.
 |---|---|
 | ⚪ Slow breathing | Ready |
 | ⚪ Fast blinking | A button is being held |
+
+These are the defaults; both can be changed in the [settings](#settings).

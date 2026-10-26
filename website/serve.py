@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Simple localhost server for the QTPY ESP32-S3 demo website.
+Localhost server for the USB Button settings page (index.html) and debugger (debug.html).
 
 Web Serial API requires a secure context (HTTPS or localhost).
-This serves index.html from localhost so Chrome allows Web Serial.
+This serves the pages from localhost so Chrome allows Web Serial.
 
 Usage:
     python3 serve.py             # serves on http://127.0.0.1:8080/index.html
@@ -27,7 +27,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Serve the QTPY ESP32-S3 demo website on localhost."
+        description="Serve the USB Button settings page on localhost."
     )
     parser.add_argument(
         "port",
@@ -137,8 +137,8 @@ def main():
     port = args.port
     open_url = f"http://127.0.0.1:{port}/index.html"
 
-    print(f"\n  QTPY ESP32-S3 Demo Server")
-    print(f"  ─────────────────────────")
+    print(f"\n  USB Button Settings Server")
+    print(f"  ──────────────────────────")
     print(f"  Open in Chrome: {open_url}")
     if args.no_open:
         print(f"  Auto-open:      disabled (--no-open)")
