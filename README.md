@@ -35,13 +35,13 @@ mode. Unplug it and plug it back in to recover.
 
 ## Settings
 
-You can change how the trigger and its light behave from a settings page in Chrome or
-Edge on a computer.
+You can change how the trigger and its light behave from the settings page,
+[button.drey.dev](https://button.drey.dev), in Chrome or Edge on a computer.
 
 1. Plug the button into the computer.
 2. Hold **BOOT** for 3 seconds. The button restarts and its status light cycles through
    all colours. The selected key doesn't change.
-3. Open the settings page, click **Connect** and choose **USB Button**.
+3. Open [button.drey.dev](https://button.drey.dev), click **Connect** and choose **USB Button**.
 
 | Setting | Choices (default first) |
 |---|---|

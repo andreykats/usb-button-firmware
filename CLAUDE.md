@@ -89,7 +89,10 @@ arduino-cli compile -b "$FQBN" --build-property "tools.ctags.pattern=/usr/bin/tr
 ```
 
 Settings page: `python3 website/serve.py` opens Chrome at http://127.0.0.1:8080
-(`debug.html` for the debugger, only with `WEB_SERIAL_ENABLED=1`).
+(`debug.html` for the debugger, only with `WEB_SERIAL_ENABLED=1`). Published at
+https://button.drey.dev by `.github/workflows/pages.yml` on pushes to `advanced-settings`
+that change `website/index.html` (only that file is published). The domain is set in the
+repo's Pages settings; DNS: CNAME `button.drey.dev` → `andreykats.github.io`.
 
 ## Fleet flashing (this Mac)
 
