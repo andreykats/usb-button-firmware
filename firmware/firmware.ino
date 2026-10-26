@@ -370,7 +370,8 @@ uint32_t      ledLastDuty      = 0xFFFFFFFFUL;
 unsigned long lastBlinkMs    = 0;
 bool          blinkPhase     = false;
 bool          pressDelivered = false;   // white (delivered) vs red (not delivered) while a button is held
-unsigned long pressFeedbackUntilMs = 0; // edge=release: feedback shown until then
+bool          releaseFeedback   = false; // edge=release: feedback shown for PRESS_FEEDBACK_MS from releaseFeedbackMs
+unsigned long releaseFeedbackMs = 0;
 unsigned long lastRainbowMs  = 0;
 uint32_t      rgbShown       = 0xFFFFFFFFUL;  // last packed colour written; invalid until first write
 
@@ -1195,10 +1196,12 @@ RGB colorWheel(uint16_t pos) {
 // True while the RGB LED should show white/red press feedback. A trigger set to
 // type on release has sent nothing while held, so it gets a short flash after
 // the release instead. BOOT counts from its press edge (keyHoldTracked), not
-// while still held through a restart.
+// while still held through a restart. The release flash is cleared once over, so
+// an old timestamp never comes back into range when millis() wraps.
 bool pressFeedbackActive(unsigned long now) {
+  if (releaseFeedback && now - releaseFeedbackMs >= PRESS_FEEDBACK_MS) releaseFeedback = false;
   bool trigger = triggerBtn.pressed && trigEdge == EDGE_PRESS;
-  return trigger || keyHoldTracked || (long)(pressFeedbackUntilMs - now) > 0;
+  return trigger || keyHoldTracked || releaseFeedback;
 }
 
 // Shows the state colour, with press feedback on top while a button is held.
@@ -1720,7 +1723,10 @@ void handleTriggerButton() {
   TriggerAction action = triggerAction(pollButton(triggerBtn, millis()));
   if (action == TRIG_NONE) return;
   keyPressed(action == TRIG_HOLD);
-  if (trigEdge == EDGE_RELEASE) pressFeedbackUntilMs = millis() + PRESS_FEEDBACK_MS;
+  if (trigEdge == EDGE_RELEASE) {
+    releaseFeedback   = true;
+    releaseFeedbackMs = millis();
+  }
 }
 
 // ─── Settings mode switch ──────────────────────────────────────────────────
@@ -1862,6 +1868,11 @@ void setup() {
   }
   USB.productName(productName);
   USB.begin();
+
+  // A loop() stuck for 5 s (the core's task watchdog timeout) resets the unit
+  // instead of leaving the button dead. Nothing in loop() blocks for more than a
+  // few hundred ms (HID report 100 ms, CDC write 250 ms, NVS write).
+  enableLoopWDT();
 
   // Settings mode: no keyboard, radio or host tracking — see loopSettingsMode()
   if (settingsMode) {

@@ -14,6 +14,7 @@ firmware/firmware.ino   ← single-file Arduino sketch
 resources/              ← schematics, pinout, datasheets, Waveshare demo code (reference only)
 README.md               ← for end users only: what it does, key selection, lights, hub power
 HARDWARE.md             ← only the pins and parts actually used — keep in sync with pin #defines
+TODO.md                 ← deferred fixes (long-uptime audit edge cases)
 ```
 
 The settings page (https://button.drey.dev) and the debug page live on their own branch,
@@ -82,6 +83,11 @@ Also update the settings table in README.md here.
   so a remote's hold never repeats on the primary. Keep `loop()` order: host tracking,
   trigger, HID, then the rest.
 - `ESPNOW_MAGIC` stays "QTPY" for interoperability with QT Py and Matrix units.
+- Long uptimes: the loop task is on the core's task watchdog (`enableLoopWDT()`, 5 s,
+  resets), so nothing in `loop()` may block for seconds. Timers compare `now - start`
+  (or `(long)(now - deadline) >= 0`), never `now >= deadline`; a stored timestamp
+  that is only valid for a while gets a flag that is cleared when it expires, since
+  `millis()` wraps after 49.7 days.
 - WiFi power save is `WIFI_PS_NONE` (no battery; the primary must not miss relayed packets).
 
 ## Conventions
