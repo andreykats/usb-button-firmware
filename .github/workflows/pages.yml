@@ -1,4 +1,4 @@
-# Publishes the settings page (website/index.html) to GitHub Pages at button.drey.dev.
+# Publishes the settings page (index.html) to GitHub Pages at button.drey.dev.
 # Only the settings page is published: debug.html and serve.py are local tools.
 # The custom domain is set in the repository's Pages settings (no CNAME file with
 # Actions deploys).
@@ -6,9 +6,9 @@ name: Settings page
 
 on:
   push:
-    branches: [ws-esp32s3-zero]
+    branches: [web-serial-interface]
     paths:
-      - website/index.html
+      - index.html
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -31,7 +31,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Collect the settings page
-        run: mkdir _site && cp website/index.html _site/
+        run: mkdir _site && cp index.html _site/
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
