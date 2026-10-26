@@ -115,7 +115,8 @@
     flex: none; width: 14px; height: 14px; border-radius: 50%;
     background: conic-gradient(#ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
   }
-  .rgb-dot.dim { opacity: .3; }
+  .rgb-dot.normal { opacity: .45; }
+  .rgb-dot.low    { opacity: .15; }
   @keyframes blink   { 0% { opacity: 1; } 50% { opacity: 0; } }
   @keyframes breathe { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
 
@@ -255,8 +256,9 @@
       <fieldset data-setting="rgb">
         <legend>Brightness<span class="saved"></span></legend>
         <div class="choices">
-          <label class="choice"><input type="radio" name="rgb" value="normal"><span><i class="rgb-dot"></i>Normal</span></label>
-          <label class="choice"><input type="radio" name="rgb" value="dim"><span><i class="rgb-dot dim"></i>Dim</span></label>
+          <label class="choice"><input type="radio" name="rgb" value="high"><span><i class="rgb-dot"></i>High</span></label>
+          <label class="choice"><input type="radio" name="rgb" value="normal"><span><i class="rgb-dot normal"></i>Normal</span></label>
+          <label class="choice"><input type="radio" name="rgb" value="low"><span><i class="rgb-dot low"></i>Low</span></label>
         </div>
       </fieldset>
     </section>
