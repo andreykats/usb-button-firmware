@@ -29,11 +29,11 @@ plugged into a computer, and that button types it.
 | Mesh network | ❌ | ✅ | ✅ |
 | Selectable keys | 36: a–z, 0–9 | 36: a–z, 0–9 | 36: a–z, 0–9 |
 | Key selector | SELECT button | BOOT button or web browser | BOOT button or web browser |
-| Customizable via web browser | ❌ | ✅ | ❌ |
+| Customizable via web browser | ❌ | ✅ | ✅ |
 | Shows the selected key | ❌ | ❌ | ✅ on the 8×8 LED display |
 | Status light | RGB LED | RGB LED | 8×8 LED display |
 
-All three firmware versions behave the same way, apart from the Zero's and Matrix's Mesh network features, the Zero's settings in the browser and the Matrix's display.
+All three firmware versions behave the same way, apart from the Zero's and Matrix's Mesh network features and settings in the browser, and the Matrix's display.
 
 ## Hub power
 
