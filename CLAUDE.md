@@ -42,7 +42,10 @@ serve.py      ← localhost server; python3 -I serve.py opens Chrome at http://1
 
 Page → board: `GET`, `SET:name=value`, `DEFAULTS`, `REBOOT` (restart into normal use;
 the page's **Disconnect** button).
-Board → page: `SETTINGS:name=value,…,key=x` (GET, DEFAULTS; `key` is read-only),
+`SET:key=x` changes the key (a–z, 0–9; the "Key" panel, built from `KEY_ROWS`).
+`DEFAULTS` leaves the key alone. Firmware older than this answers it with
+`ERR:UNKNOWN_SETTING:key`, which the page shows as "update the button's firmware".
+Board → page: `SETTINGS:name=value,…,key=x` (GET, DEFAULTS),
 `OK:name=value`, `ERR:…`, `REBOOTING...`, and for the trigger test `TRIGGER:down|up`
 and `TYPE:hold|tap`.
 

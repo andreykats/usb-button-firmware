@@ -96,6 +96,23 @@
   .choice input:disabled + span { opacity: .45; }
   fieldset.pending .choice span { opacity: .6; }
 
+  /* Key picker: the 36 keys as keycaps, in keyboard rows */
+  .keys { clear: both; display: grid; gap: 6px; }
+  .key-row { display: flex; justify-content: center; gap: 6px; }
+  .key { position: relative; flex: 0 1 46px; }
+  .key input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .key span {
+    display: grid; place-items: center; height: 42px;
+    background: #fff; border: 1px solid var(--rule); border-bottom-width: 3px; border-radius: 7px;
+    font: 600 17px var(--mono); color: var(--ink); transition: border-color .15s, box-shadow .15s;
+  }
+  .key input:checked + span {
+    border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent);
+    background: var(--accent); color: #fff;
+  }
+  .key input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+  fieldset.pending .key span { opacity: .6; }
+
   /* Lamp previews, timed like the firmware's status LED */
   .lamp {
     flex: none; width: 14px; height: 14px; border-radius: 50%;
@@ -197,6 +214,15 @@
 
   <form id="settingsForm" hidden>
     <section class="panel">
+      <h2>Key</h2>
+      <p>The key the trigger types. <b>BOOT</b> also steps through them in normal use. <b>Restore defaults</b> keeps the key.</p>
+      <fieldset data-setting="key">
+        <legend>Key to type<span class="saved"></span></legend>
+        <div class="keys" id="keyChoices"></div>
+      </fieldset>
+    </section>
+
+    <section class="panel">
       <h2>Trigger button</h2>
       <fieldset data-setting="edge">
         <legend>Types the key<span class="saved"></span></legend>
@@ -276,7 +302,8 @@
 // Waveshare ESP32-S3-Zero running this firmware (same VID:PID in both modes)
 const DEVICE_FILTERS = [{ usbVendorId: 0x303A, usbProductId: 0x822B }];
 const REPLY_TIMEOUT_MS = 1500;
-const SETTING_NAMES = ['edge', 'repeat', 'pressed', 'idle', 'rgb'];
+const SETTING_NAMES = ['key', 'edge', 'repeat', 'pressed', 'idle', 'rgb'];
+const KEY_ROWS = ['1234567890', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm'];   // the firmware's a–z, 0–9
 const TEST_REPEAT_DELAY_MS = 500;   // a typical computer key-repeat delay…
 const TEST_REPEAT_EVERY_MS = 60;    // …and rate, for the trigger test
 const TEST_MAX_CHARS = 160;
@@ -288,7 +315,7 @@ let port = null;
 let reader = null;
 let exiting = false;
 let confirmed = {};          // last values the button confirmed
-let selectedKey = '?';       // the button's key (read-only here)
+let selectedKey = '?';       // the button's key
 let repeatTimer = null;      // trigger test: simulated computer key repeat
 let waiters = [];            // { match(line) → bool, resolve, reject, timer }
 
@@ -351,7 +378,30 @@ function applySettings(values) {
     const input = form.querySelector(`input[name="${name}"][value="${values[name]}"]`);
     if (input) input.checked = true;
   }
+  if (values.key) {
+    selectedKey = values.key;
+    $('keycapKey').textContent = selectedKey;
+  }
   updateRepeatAvailability();
+}
+
+function buildKeyChoices() {
+  for (const keys of KEY_ROWS) {
+    const row = document.createElement('div');
+    row.className = 'key-row';
+    for (const key of keys) {
+      const label = document.createElement('label');
+      label.className = 'key';
+      const input = document.createElement('input');
+      Object.assign(input, { type: 'radio', name: 'key', value: key });
+      input.setAttribute('aria-label', `Key ${key}`);
+      const face = document.createElement('span');
+      face.textContent = key;
+      label.append(input, face);
+      row.append(label);
+    }
+    $('keyChoices').append(row);
+  }
 }
 
 // Repeat only applies when the key is typed on press
@@ -416,10 +466,6 @@ function parseSettings(line) {
   for (const pair of line.slice('SETTINGS:'.length).split(',')) {
     const [name, value] = pair.split('=');
     if (name && value) values[name] = value;
-  }
-  if (values.key) {
-    selectedKey = values.key;
-    $('keycapKey').textContent = selectedKey;
   }
   return values;
 }
@@ -514,7 +560,9 @@ form.addEventListener('change', async e => {
     flashSaved(fieldset, 'Saved', false);
   } catch (err) {
     applySettings({ [name]: confirmed[name] });   // back to what the button has
-    flashSaved(fieldset, err.message === 'timeout' ? 'No reply — not saved' : `Not saved: ${err.message}`, true);
+    flashSaved(fieldset, err.message === 'timeout' ? 'No reply — not saved'
+      : err.message.startsWith('UNKNOWN_SETTING') ? 'Not saved: update the button’s firmware to change this here'
+      : `Not saved: ${err.message}`, true);
   } finally {
     fieldset.classList.remove('pending');
   }
@@ -550,6 +598,7 @@ $('connectBtn').addEventListener('click', async () => {
 });
 
 // ─── Start-up ───────────────────────────────────────────────────────────────
+buildKeyChoices();
 if (!('serial' in navigator)) {
   $('connectPanel').hidden = true;
   $('unsupportedPanel').hidden = false;
