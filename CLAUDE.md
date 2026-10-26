@@ -2,8 +2,10 @@
 
 Branch `ws-esp32s3-zero`: port of the `main` branch firmware (Waveshare ESP32-S3-Matrix,
 itself a port of `~/Sidetable/esp32s3-com-poc`, the QT Py firmware) to the
-Waveshare ESP32-S3-Zero, with settings mode (Advanced / Zero units only, not
-`qtpy-samd21`; developed on `advanced-settings`).
+Waveshare ESP32-S3-Zero, with settings mode (Advanced units — Zero and Matrix — not
+`qtpy-samd21`; developed on `advanced-settings`). `ws-esp32s3-matrix` is this sketch
+with the Matrix hardware layer on top (pins, 8×8 display, USB ID 303A:81FB, names):
+changes the Matrix should get are made here first, then ported there (its CLAUDE.md).
 README.md is for end users (behaviour, key selection, lights). Board settings, compile-time
 flags and the Web Serial protocol are documented in the sketch header.
 
@@ -35,7 +37,8 @@ firmware checkout stays put:
 git worktree add ../usb-button-web web-serial-interface
 ```
 
-Also update the settings table in README.md here.
+Also update the settings table in README.md here, and port the change to
+`ws-esp32s3-matrix` (and its README).
 
 ## Key facts
 
