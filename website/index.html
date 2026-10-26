@@ -47,6 +47,17 @@
     margin: 0; font: 600 26px/1.15 var(--display); letter-spacing: -0.01em;
   }
   .status { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+
+  /* The button's selected key, so it's clear which button is being edited */
+  .keycap { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .keycap-label {
+    font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+  }
+  .keycap-face {
+    display: grid; place-items: center; width: 48px; height: 48px;
+    background: #fff; border: 1px solid var(--rule); border-bottom-width: 4px; border-radius: 9px;
+    font: 600 24px var(--mono); color: var(--ink);
+  }
   .status.err { color: var(--err); }
 
   /* ── Panels ── */
@@ -155,6 +166,10 @@
       <h1>USB Button settings</h1>
       <p class="status" id="status" role="status">Not connected</p>
     </div>
+    <div class="keycap" id="keycap" hidden>
+      <span class="keycap-label">Key</span>
+      <span class="keycap-face" id="keycapKey" aria-label="Selected key"></span>
+    </div>
   </header>
 
   <section class="panel" id="connectPanel">
@@ -162,7 +177,7 @@
     <ol class="steps">
       <li>Plug the button into this computer.</li>
       <li>Hold <b>BOOT</b> for 3 seconds. The button restarts and its light cycles through all colours.</li>
-      <li>Click <b>Connect</b> and choose <b>USB Button</b>.</li>
+      <li>Click <b>Connect</b> and choose <b>USB Button</b>. It’s listed with the button’s key and ID, e.g. “USB Button [2] (EB:F4:58)”.</li>
     </ol>
     <button class="primary" id="connectBtn">Connect</button>
   </section>
@@ -229,7 +244,7 @@
 
     <div class="actions">
       <button type="button" id="defaultsBtn">Restore defaults</button>
-      <button type="button" class="primary" id="exitBtn">Exit settings</button>
+      <button type="button" class="primary" id="exitBtn">Disconnect</button>
     </div>
   </form>
 </main>
@@ -265,6 +280,7 @@ function setStatus(text, isError = false) {
 function showConnected(connected) {
   $('connectPanel').hidden = connected;
   form.hidden = !connected;
+  $('keycap').hidden = !connected;
   $('boardLed').classList.toggle('rainbow', connected);
 }
 
@@ -370,7 +386,10 @@ function parseSettings(line) {
     const [name, value] = pair.split('=');
     if (name && value) values[name] = value;
   }
-  if (values.key) selectedKey = values.key;
+  if (values.key) {
+    selectedKey = values.key;
+    $('keycapKey').textContent = selectedKey;
+  }
   return values;
 }
 
@@ -441,7 +460,7 @@ function onPortClosed() {
   setTriggerDown(false);
   showConnected(false);
   if (exiting) {
-    setStatus('The button restarted and is a keyboard again.');
+    setStatus('Disconnected. The button restarted and is a keyboard again.');
   } else if (wasConnected) {
     setStatus('The button disconnected. It is back in normal use unless you hold BOOT for 3 seconds again.', true);
   }
@@ -485,7 +504,7 @@ $('defaultsBtn').addEventListener('click', async () => {
 
 $('exitBtn').addEventListener('click', async () => {
   exiting = true;
-  setStatus('Restarting the button…');
+  setStatus('Disconnecting…');
   try { await send('REBOOT'); } catch (_) {}
 });
 

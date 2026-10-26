@@ -41,7 +41,9 @@ You can change how the trigger and its light behave from the settings page,
 1. Plug the button into the computer.
 2. Hold **BOOT** for 3 seconds. The button restarts and its status light cycles through
    all colours. The selected key doesn't change.
-3. Open [button.drey.dev](https://button.drey.dev), click **Connect** and choose **USB Button**.
+3. Open [button.drey.dev](https://button.drey.dev), click **Connect** and choose the
+   **USB Button** entry. It shows the button's key and an ID that tells buttons apart,
+   e.g. `USB Button [2] (EB:F4:58)`.
 
 | Setting | Choices (default first) |
 |---|---|
@@ -54,7 +56,7 @@ Each change is saved on the button straight away. While the button is in setting
 it doesn't type: pressing the trigger shows its light, and the settings page shows what
 your computer would receive.
 
-To go back to normal use, click **Exit settings**, press **BOOT** or **RESET**, or unplug
+To go back to normal use, click **Disconnect**, press **BOOT** or **RESET**, or unplug
 the button and plug it back in.
 
 ## Hardware requirements

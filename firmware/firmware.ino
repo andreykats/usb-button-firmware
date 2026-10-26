@@ -36,7 +36,8 @@
  *
  * SETTINGS MODE (BOOT held SETTINGS_HOLD_MS):
  *   The unit restarts with USB serial only (no keyboard, no ESP-NOW) as "USB
- *   Button", RGB LED cycling the rainbow. The browser app in website/
+ *   Button [key] (last 3 MAC bytes)", e.g. "USB Button [2] (EB:F4:58)", RGB LED
+ *   cycling the rainbow. The browser app in website/
  *   changes the settings below; each change is saved to NVS and applied at once.
  *   The trigger doesn't type: it previews the status LED patterns and the settings
  *   page shows what it would type (TRIGGER/TYPE lines). A new BOOT press, RESET or
@@ -184,6 +185,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>             // WiFi power-save control + channel setting
 #include <esp_now.h>              // ESP-NOW peer-to-peer communication
+#include <esp_mac.h>              // esp_efuse_mac_get_default() — settings-mode USB name
 #include <Preferences.h>         // NVS flash — persists key across reboots/reflash
 
 #if WIFI_ENABLED
@@ -1833,8 +1835,17 @@ void setup() {
   Cdc.begin(115200);
   USB.manufacturerName("Andrey");
   char productName[32];
-  if (settingsMode) snprintf(productName, sizeof(productName), "USB Button");
-  else              snprintf(productName, sizeof(productName), "Zero Remote [%c]", hidKey);
+  uint8_t mac[6];
+  if (!settingsMode) {
+    snprintf(productName, sizeof(productName), "Zero Remote [%c]", hidKey);
+  } else if (esp_efuse_mac_get_default(mac) == ESP_OK) {
+    // Key and the end of the MAC (the USB serial number) tell boards apart in the
+    // browser's port chooser
+    snprintf(productName, sizeof(productName), "USB Button [%c] (%02X:%02X:%02X)",
+             hidKey, mac[3], mac[4], mac[5]);
+  } else {
+    snprintf(productName, sizeof(productName), "USB Button [%c]", hidKey);
+  }
   USB.productName(productName);
   USB.begin();
 

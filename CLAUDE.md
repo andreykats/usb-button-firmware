@@ -33,11 +33,12 @@ HARDWARE.md             ← only the pins and parts actually used — keep in sy
 - Settings mode: BOOT held `SETTINGS_HOLD_MS` (3 s) restores the previous key, sets NVS
   flag `settings` and calls `ESP.restart()`. `setup()` reads and clears the flag, so any
   later restart, RESET or power cycle is normal mode. Settings mode registers CDC only
-  ("USB Button"), no ESP-NOW, rainbow RGB starting from purple, serves the settings
-  protocol (`parseSettingsLine()`), reports trigger edges for the page's test
-  (`reportTriggerTest()`), and a new BOOT press restarts. `ESP.restart()` is a core
-  reset, which does not re-sample strapping pins (TRM Table 7-1): BOOT held through it
-  does not enter download mode. BOOT held at boot is taken as already pressed.
+  (named "USB Button [key] (EB:F4:58)", the last 3 MAC bytes), no ESP-NOW, rainbow RGB
+  starting from purple, serves the settings protocol (`parseSettingsLine()`), reports
+  trigger edges for the page's test (`reportTriggerTest()`), and a new BOOT press
+  restarts. `ESP.restart()` is a core reset, which does not re-sample strapping pins
+  (TRM Table 7-1): BOOT held through it does not enter download mode. BOOT held at boot
+  is taken as already pressed.
 - Settings (`SETTINGS[]` table, NVS, applied live): `edge` press/release, `repeat`
   on/off, `pressed` fast/on/slow/off, `idle` breathe/fast/slow/off. First choice is the
   default. "On" is a 125 Hz blink (`LED_FLICKER_PERIOD_MS`), not steady.
