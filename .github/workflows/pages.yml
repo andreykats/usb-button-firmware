@@ -1,0 +1,43 @@
+# Publishes the settings page (website/index.html) to GitHub Pages at button.drey.dev.
+# Only the settings page is published: debug.html and serve.py are local tools.
+# The custom domain is set in the repository's Pages settings (no CNAME file with
+# Actions deploys).
+name: Settings page
+
+on:
+  push:
+    branches: [advanced-settings]
+    paths:
+      - website/index.html
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Collect the settings page
+        run: mkdir _site && cp website/index.html _site/
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
