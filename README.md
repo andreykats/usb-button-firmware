@@ -8,9 +8,9 @@ Android with no drivers or software. Phones and tablets need a USB-C port or a U
 adapter.
 
 Holding the trigger works like holding a key on a keyboard: the computer starts
-repeating the key after a short delay. You can change this in the [settings](#settings).
+repeating the key after a short delay. You can change this in the [settings](#settings-in-the-browser).
 
-## Wireless buttons
+## Mesh network buttons
 
 A button doesn't have to be plugged into a computer. Plugged into a charger, it sends
 its key wirelessly to a nearby button that *is* plugged into a computer, and that button
@@ -29,15 +29,15 @@ There are 36 keys to choose from: the letters a–z (typed in lower case) and th
 Press and release the small **BOOT** button on the board to step to the next key: a, b,
 c … z, then 0, 1 … 9, then back to a. Each time you let go it types the new key once, so
 you can see which one is selected in any text field. The button remembers its key when
-unplugged. Holding BOOT for 3 seconds opens [settings](#settings) instead, without
+unplugged. Holding BOOT for 3 seconds opens [settings](#settings-in-the-browser) instead, without
 changing the key.
 
-You can also pick the key directly on the [settings page](#settings).
+You can also pick the key directly on the [settings page](#settings-in-the-browser).
 
 Don't hold BOOT while plugging the button in: that puts the board into firmware-update
 mode. Unplug it and plug it back in to recover.
 
-## Settings
+## Settings in the browser
 
 You can change how the trigger and its light behave from the settings page,
 [button.drey.dev](https://button.drey.dev), in Chrome, Edge, Opera or Firefox on a
@@ -96,11 +96,11 @@ A wireless button can use any USB charger rated 5 V, 500 mA or more.
 BOOT, and the trigger when it's set to type when released, show white or red briefly
 after you let go.
 
-**Trigger light**
+**Trigger light (default)**
 
 | Light | Meaning |
 |---|---|
 | ⚪ Slow breathing | Ready |
 | ⚪ Fast blinking | A button is being held |
 
-These are the defaults; both can be changed in the [settings](#settings).
+These are the defaults; both can be changed in the [settings](#settings-in-the-browser).
