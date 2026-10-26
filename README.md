@@ -36,7 +36,8 @@ mode. Unplug it and plug it back in to recover.
 ## Settings
 
 You can change how the trigger and its light behave from the settings page,
-[button.drey.dev](https://button.drey.dev), in Chrome or Edge on a computer.
+[button.drey.dev](https://button.drey.dev), in Chrome, Edge, Opera or Firefox on a
+computer. Safari doesn't support it.
 
 1. Plug the button into the computer.
 2. Hold **BOOT** for 3 seconds. The button restarts and its status light cycles through

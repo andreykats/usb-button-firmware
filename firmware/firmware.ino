@@ -17,7 +17,8 @@
  *
  * OPTIONAL CHANNELS (compile-time, both OFF by default):
  *   - WEB_SERIAL_ENABLED=1 — debug Web Serial protocol over USB CDC in normal mode
- *     (website/debug.html). Settings mode has its own protocol, always built in.
+ *     (debug.html on branch web-serial-interface). Settings mode has its own protocol,
+ *     always built in.
  *   - WIFI_ENABLED=1       — WebSocket over WiFi + encrypted ESP-NOW credential
  *     sharing. Replaces the ESP-NOW keystroke relay (the two are exclusive).
  *
@@ -37,8 +38,9 @@
  * SETTINGS MODE (BOOT held SETTINGS_HOLD_MS):
  *   The unit restarts with USB serial only (no keyboard, no ESP-NOW) as "USB
  *   Button [key] (last 3 MAC bytes)", e.g. "USB Button [2] (EB:F4:58)", RGB LED
- *   cycling the rainbow. The browser app in website/
- *   changes the settings below; each change is saved to NVS and applied at once.
+ *   cycling the rainbow. The settings page (branch web-serial-interface,
+ *   https://button.drey.dev) changes the settings below; each change is saved to
+ *   NVS and applied at once.
  *   The trigger doesn't type: it previews the status LED patterns and the settings
  *   page shows what it would type (TRIGGER/TYPE lines). A new BOOT press, RESET or
  *   a power cycle returns to normal mode: the mode flag is cleared as settings
@@ -110,7 +112,7 @@
  *     REBOOTING...\n         Restarting into normal mode
  *
  * DEBUG SERIAL PROTOCOL (normal mode, WEB_SERIAL_ENABLED=1, 115200 baud,
- * newline-terminated; website/debug.html):
+ * newline-terminated; debug.html on branch web-serial-interface):
  *
  *   ESP32 → Browser:
  *     READY\n                    Device booted, waiting

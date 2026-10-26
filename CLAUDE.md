@@ -11,12 +11,29 @@ flags and the Web Serial protocol are documented in the sketch header.
 
 ```
 firmware/firmware.ino   ← single-file Arduino sketch
-website/                ← index.html: settings page (settings mode); debug.html: debugger
-                          (normal mode, only with WEB_SERIAL_ENABLED=1)
 resources/              ← schematics, pinout, datasheets, Waveshare demo code (reference only)
 README.md               ← for end users only: what it does, key selection, lights, hub power
 HARDWARE.md             ← only the pins and parts actually used — keep in sync with pin #defines
 ```
+
+The settings page (https://button.drey.dev) and the debug page live on their own branch,
+`web-serial-interface` (see its CLAUDE.md).
+
+## Customizable features → update `web-serial-interface` too
+
+Whenever a firmware change adds, removes or renames a setting (an entry or choice in
+`SETTINGS[]`) or changes the settings protocol (sketch header, `parseSettingsLine()`,
+`printSettings()`, `reportTriggerTest()`), also update `index.html` on the
+`web-serial-interface` branch (its CLAUDE.md, "Adding a setting"). Pushing that branch
+deploys the page to button.drey.dev automatically; commit and push it after every page
+change without asking, then check the deploy. Work on it in a separate worktree so the
+firmware checkout stays put:
+
+```bash
+git worktree add ../usb-button-web web-serial-interface
+```
+
+Also update the settings table in README.md here.
 
 ## Key facts
 
@@ -90,11 +107,7 @@ FQBN='esp32:esp32:waveshare_esp32_s3_zero:USBMode=default,CDCOnBoot=cdc,UploadMo
 arduino-cli compile -b "$FQBN" --build-property "tools.ctags.pattern=/usr/bin/true" firmware
 ```
 
-Settings page: `python3 website/serve.py` opens Chrome at http://127.0.0.1:8080
-(`debug.html` for the debugger, only with `WEB_SERIAL_ENABLED=1`). Published at
-https://button.drey.dev by `.github/workflows/pages.yml` on pushes to `ws-esp32s3-zero`
-that change `website/index.html` (only that file is published). The domain is set in the
-repo's Pages settings; DNS: CNAME `button.drey.dev` → `andreykats.github.io`.
+Settings page and debugger: branch `web-serial-interface` (`python3 -I serve.py` there).
 
 ## Fleet flashing (this Mac)
 
