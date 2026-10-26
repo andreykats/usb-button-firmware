@@ -299,8 +299,11 @@
 <script>
 'use strict';
 
-// Waveshare ESP32-S3-Zero running this firmware (same VID:PID in both modes)
-const DEVICE_FILTERS = [{ usbVendorId: 0x303A, usbProductId: 0x822B }];
+// Advanced buttons running this firmware (same VID:PID in both modes)
+const DEVICE_FILTERS = [
+  { usbVendorId: 0x303A, usbProductId: 0x822B },   // Waveshare ESP32-S3-Zero
+  { usbVendorId: 0x303A, usbProductId: 0x81FB },   // Waveshare ESP32-S3-Matrix
+];
 const REPLY_TIMEOUT_MS = 1500;
 const SETTING_NAMES = ['key', 'edge', 'repeat', 'pressed', 'idle', 'rgb'];
 const KEY_ROWS = ['1234567890', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm'];   // the firmware's a–z, 0–9

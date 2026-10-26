@@ -5,7 +5,8 @@ The settings page for USB Button (Advanced Type) boards, live at
 browser, with no app or driver to install, and changes how its trigger and lights
 behave.
 
-The button's firmware is on the `ws-esp32s3-zero` branch.
+The button's firmware is on the `ws-esp32s3-zero` (ESP32-S3-Zero) and `ws-esp32s3-matrix`
+(ESP32-S3-Matrix) branches.
 
 ## Compatible browsers
 
