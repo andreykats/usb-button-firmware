@@ -84,7 +84,7 @@ Two panels show Waveshare's ESP32-S3-Zero acting out their steps, each a script 
   release the LED flashes white and the keycap beside the board steps to the next key.
   The key carries on from loop to loop (1, 2, 3, …), as on the button. The panel is
   hidden while connected: in settings mode BOOT leaves settings mode.
-- The two panels, then "What the light means" (and "Browser not supported" in Connect's
+- The two panels, then the status light legend (and "Browser not supported" in Connect's
   place), are equal cells in `#intro`, Change the key first: three across from a 1300 px
   window (page up to 1440 px), two across from 900 px (page 1000 px, the legend under
   Change the key), stacked below that. Connected, `#intro` is hidden and the page is
@@ -92,7 +92,7 @@ Two panels show Waveshare's ESP32-S3-Zero acting out their steps, each a script 
 
 ## Light legend
 
-"What the light means" lists the firmware's RGB status LED states (default build,
+"Status light legend" (`#lightPanel`) lists the firmware's RGB status LED states (default build,
 `WIFI_ENABLED=0`; the Matrix draws the key in the same colours), one line each; the
 user left out off and white-on-a-press, and any what-to-do text. Its dots (`.led`,
 colour in `--c`) use the firmware's colours and blink rates: booting yellow 150 ms
