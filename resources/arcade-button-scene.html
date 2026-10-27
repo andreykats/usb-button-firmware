@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USB Button — arcade button (experiment)</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "../vendor/three/build/three.module.js",
+    "three/addons/": "../vendor/three/examples/jsm/"
+  }
+}
+</script>
+<style>
+  :root {
+    --bg:    #E4E8EC;
+    --rule:  #CDD3DA;
+  }
+  body { margin: 0; background: var(--bg); }
+  main { max-width: 480px; margin: 0 auto; padding: 40px 20px; }
+  .scene {
+    position: relative; margin: 0; aspect-ratio: 3 / 4; overflow: hidden;
+    border: 1px solid var(--rule); border-radius: 10px;
+    background: radial-gradient(ellipse at 50% 45%, #fff 0%, var(--bg) 100%);
+  }
+  .scene canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<main>
+  <figure class="scene" id="scene" hidden
+          role="img" aria-label="The ESP32-S3-Zero with half an inch of wire either side of a small black connector, running to a round red arcade button below it.">
+    <canvas aria-hidden="true"></canvas>
+  </figure>
+</main>
+
+<script type="module">
+// ─── Experiment: the Zero wired to a red arcade button ──────────────────────
+// Saved copy of experiments/arcade.html on the web-serial-interface branch; its
+// ../vendor and ../models paths resolve there. Render: arcade-button-scene.png.
+// Face on from above. The board is models/esp32-s3-zero.glb (tools/step_to_glb.py);
+// the arcade button and wires are built here. Units are mm, Y up.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const BOARD_BOTTOM = -1.6;                 // PCB underside; everything rests on this plane
+const BOARD_EDGE_Z = 11.75;                // the Zero's bottom edge (antenna end)
+const WIRE_EACH_SIDE = 12.7;               // ½ in of wire showing either side of the connector
+const BUTTON_SCALE = 0.75;                 // of a 30 mm arcade button
+// The inline connector: plug and socket, halfway between the board and the button
+const CONNECTOR = { length: 12, width: 6.8, height: 3.2, seam: 0.5 };
+const WIRE_LENGTH  = 2 * WIRE_EACH_SIDE + CONNECTOR.length;   // board edge to bezel edge
+const CONNECTOR_Z = BOARD_EDGE_Z + WIRE_EACH_SIDE + CONNECTOR.length / 2;
+// The arcade button at full size: bezel flange and domed plunger, as (radius, height) profiles
+const BEZEL_PROFILE = [
+  [12.6, 0], [12.6, 2.3], [13.1, 2.9], [14.6, 3.0], [15.9, 2.5], [16.5, 1.5], [16.5, 0],
+];
+// The plunger: a shallow spherical dome (DOME: radius, rise, top height) on a side
+// rounded over at its edge. A sphere cap, not a lathe, so the top shades smoothly.
+const DOME = [11, 0.9, 4.1];
+const PLUNGER_SIDE_PROFILE = [
+  [11, 3.2], [11.6, 2.9], [12.0, 2.4], [12.1, 1.6], [12.1, 0.4], [10.5, 0.4],
+];
+const GAP = [12.1, 12.6, 1.8];             // dark ring between plunger and bezel: r0, r1, height
+const RED = 0xc80c16;                      // plunger
+const RIM = 0x17181b;                      // bezel: black
+const BEZEL_RADIUS = Math.max(...BEZEL_PROFILE.map(([r]) => r)) * BUTTON_SCALE;
+const BUTTON_CENTRE = new THREE.Vector3(0, BOARD_BOTTOM, BOARD_EDGE_Z + WIRE_LENGTH + BEZEL_RADIUS);
+
+// The bundle: one wire per connection, by HARDWARE.md (5V, GND, status LED "1", trigger "13")
+const WIRES = [
+  { colour: 0xd8262c },   // 5V
+  { colour: 0x202226 },   // GND
+  { colour: 0xf2c218 },   // "1": status LED drive
+  { colour: 0x2f6fd8 },   // "13": trigger
+];
+const WIRE_RADIUS = 0.55;
+const WIRE_PITCH = 1.6;                    // side by side where they enter the connector
+const BUNDLE_RADIUS = 0.75;                // wire centres from the bundle's axis
+const BUNDLE_TWISTS = 5;                   // turns along its length
+const FLATTEN_MM = 4;                      // twisted → side by side, either side of the connector
+// Low enough that no twisted wire rises above the surface the board and button sit
+// on: the button's bezel thins to nothing at its edge
+const WIRE_Y = BOARD_BOTTOM - (BUNDLE_RADIUS + WIRE_RADIUS) - 0.1;
+// The bundle's axis: straight down from under the board to under the button
+const BUNDLE_PATH = new THREE.LineCurve3(
+  new THREE.Vector3(0, WIRE_Y, 4), new THREE.Vector3(0, WIRE_Y, BUTTON_CENTRE.z));
+
+const figure = document.getElementById('scene');
+
+// A body of revolution from a closed (radius, height) outline
+function lathe(profile, material) {
+  const points = profile.map(([r, y]) => new THREE.Vector2(r, y));
+  points.push(points[0].clone());
+  return new THREE.Mesh(new THREE.LatheGeometry(points, 128), material);
+}
+
+function makeArcadeButton() {
+  const button = new THREE.Group();
+  // Little environment reflection: the white studio room washes red out to pink
+  const plastic = new THREE.MeshStandardMaterial({ color: RED, roughness: 0.38, envMapIntensity: 0.12 });
+  const [r, rise, top] = DOME;
+  const sphere = (r * r + rise * rise) / (2 * rise);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(sphere, 128, 24, 0, 2 * Math.PI, 0, Math.asin(r / sphere)), plastic);
+  cap.position.y = top - sphere;
+  const plunger = new THREE.Group();
+  plunger.add(cap, lathe(PLUNGER_SIDE_PROFILE, plastic));
+  plunger.name = 'plunger';
+  const gap = new THREE.Mesh(new THREE.RingGeometry(GAP[0], GAP[1], 128),
+    new THREE.MeshBasicMaterial({ color: 0x1a0b0c }));
+  gap.rotation.x = -Math.PI / 2;
+  gap.position.y = GAP[2];
+  const rim = new THREE.MeshStandardMaterial({ color: RIM, roughness: 0.4, envMapIntensity: 0.6 });
+  button.add(lathe(BEZEL_PROFILE, rim), plunger, gap);
+  return button;
+}
+
+const clamp01 = x => Math.min(Math.max(x, 0), 1);
+const ease = x => x * x * (3 - 2 * x);
+
+// One wire of the bundle at arc-length fraction u along the axis: twisted round the
+// axis, easing into a row side by side where it enters the connector (at connectorU)
+class BundleWire extends THREE.Curve {
+  constructor(axis, index, connectorU) {
+    super();
+    this.axis = axis;
+    this.index = index;
+    this.connectorU = connectorU;
+    this.length = axis.getLength();
+  }
+  getPoint(u, target = new THREE.Vector3()) {
+    const tangent = this.axis.getTangentAt(u);
+    const across = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();   // horizontal
+    const angle = 2 * Math.PI * (this.index / WIRES.length + BUNDLE_TWISTS * u);
+    const fromConnector = Math.abs(u - this.connectorU) * this.length - CONNECTOR.length / 2;
+    const flat = ease(1 - clamp01(fromConnector / FLATTEN_MM));
+    const row = (this.index - (WIRES.length - 1) / 2) * WIRE_PITCH;
+    const side = THREE.MathUtils.lerp(BUNDLE_RADIUS * Math.cos(angle), row, flat);
+    const up = BUNDLE_RADIUS * Math.sin(angle) * (1 - flat);
+    this.axis.getPointAt(u, target).addScaledVector(across, side);
+    target.y += up;
+    return target;
+  }
+}
+
+function makeWires(connectorU) {
+  const wires = new THREE.Group();
+  WIRES.forEach(({ colour }, i) => {
+    wires.add(new THREE.Mesh(new THREE.TubeGeometry(new BundleWire(BUNDLE_PATH, i, connectorU), 600, WIRE_RADIUS, 12),
+      new THREE.MeshStandardMaterial({ color: colour, roughness: 0.45 })));
+  });
+  return wires;
+}
+
+// Plug and socket: two black housings with a seam between them, centred on the
+// origin and lying along Z
+function makeConnector() {
+  const { length, width, height, seam } = CONNECTOR;
+  const plastic = new THREE.MeshStandardMaterial({ color: 0x1c1d21, roughness: 0.5 });
+  const half = (length - seam) / 2;
+  const socket = new THREE.Mesh(new THREE.BoxGeometry(width, height, half), plastic);
+  socket.position.z = -(seam + half) / 2;
+  const plug = new THREE.Mesh(new THREE.BoxGeometry(width - 0.6, height - 0.4, half), plastic);
+  plug.position.z = (seam + half) / 2;
+  const core = new THREE.Mesh(new THREE.BoxGeometry(width - 1.4, height - 1, seam + 0.2),
+    new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.6 }));
+  const connector = new THREE.Group();
+  connector.add(socket, plug, core);
+  return connector;
+}
+
+async function start() {
+  const canvas = figure.querySelector('canvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+
+  const scene = new THREE.Scene();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.8;
+  const sun = new THREE.DirectionalLight(0xffffff, 1.8);
+  sun.position.set(18, 45, -12);
+  scene.add(sun);
+
+  // Face on from straight above, USB-C at the top; framed to fit on resize
+  const camera = new THREE.PerspectiveCamera(25, 3 / 4, 1, 1000);
+  camera.up.set(0, 0, -1);
+
+  const gltf = await new GLTFLoader().loadAsync('../models/esp32-s3-zero.glb');
+  const content = new THREE.Group();
+  content.add(gltf.scene);
+
+  const button = makeArcadeButton();
+  button.scale.setScalar(BUTTON_SCALE);
+  button.position.copy(BUTTON_CENTRE);
+  const connectorU = (CONNECTOR_Z - BUNDLE_PATH.v1.z) / (BUNDLE_PATH.v2.z - BUNDLE_PATH.v1.z);
+  const connector = makeConnector();
+  connector.position.copy(BUNDLE_PATH.getPointAt(connectorU));
+  content.add(button, makeWires(connectorU), connector);
+  scene.add(content);
+
+  const MARGIN = 1.12;
+  const box = new THREE.Box3().setFromObject(content);
+  const centre = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  function frame() {
+    const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    const distance = MARGIN * Math.max(size.z / 2 / tan, size.x / 2 / (tan * camera.aspect));
+    camera.position.set(centre.x, box.max.y + distance, centre.z);
+    camera.lookAt(centre.x, 0, centre.z);
+  }
+
+  new ResizeObserver(() => {
+    const { clientWidth: w, clientHeight: h } = canvas;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    frame();
+    renderer.render(scene, camera);
+  }).observe(canvas);
+
+  figure.hidden = false;
+}
+
+start().catch(err => console.warn('Arcade button scene unavailable:', err));
+</script>
+</body>
+</html>

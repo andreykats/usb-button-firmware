@@ -13,7 +13,7 @@ flags and the Web Serial protocol are documented in the sketch header.
 
 ```
 firmware/firmware.ino   ← single-file Arduino sketch
-resources/              ← schematics, pinout, datasheets, Waveshare demo code (reference only)
+resources/              ← schematics, pinout, datasheets, Waveshare demo code, scene renders (reference only)
 README.md               ← for end users only: what it does, key selection, lights, hub power
 HARDWARE.md             ← only the pins and parts actually used — keep in sync with pin #defines
 TODO.md                 ← deferred fixes (long-uptime audit edge cases)
