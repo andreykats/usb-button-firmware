@@ -18,9 +18,9 @@
     --rule:  #CDD3DA;
   }
   body { margin: 0; background: var(--bg); }
-  main { max-width: 760px; margin: 0 auto; padding: 40px 20px; }
+  main { max-width: 480px; margin: 0 auto; padding: 40px 20px; }
   .scene {
-    position: relative; margin: 0; aspect-ratio: 16 / 9; overflow: hidden;
+    position: relative; margin: 0; aspect-ratio: 3 / 4; overflow: hidden;
     border: 1px solid var(--rule); border-radius: 10px;
     background: radial-gradient(ellipse at 50% 45%, #fff 0%, var(--bg) 100%);
   }
@@ -30,7 +30,7 @@
 <body>
 <main>
   <figure class="scene" id="scene" hidden
-          role="img" aria-label="The ESP32-S3-Zero with a short bundle of wires running from under it to a round red arcade button.">
+          role="img" aria-label="The ESP32-S3-Zero with two inches of wire, joined by a small black connector halfway, running to a round red arcade button below it.">
     <canvas aria-hidden="true"></canvas>
   </figure>
 </main>
@@ -44,8 +44,10 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const BOARD_BOTTOM = -1.6;                 // PCB underside; everything rests on this plane
-const BUTTON_CENTRE = new THREE.Vector3(33, 0, 6);
-// A 30 mm arcade button: bezel flange and domed plunger, as (radius, height) profiles
+const BOARD_EDGE_Z = 11.75;                // the Zero's bottom edge (antenna end)
+const WIRE_LENGTH  = 50.8;                 // 2 in of wire showing, board edge to bezel edge
+const BUTTON_SCALE = 0.5;                  // of a 30 mm arcade button
+// The arcade button at full size: bezel flange and domed plunger, as (radius, height) profiles
 const BEZEL_PROFILE = [
   [12.6, 0], [12.6, 2.3], [13.1, 2.9], [14.6, 3.0], [15.9, 2.5], [16.5, 1.5], [16.5, 0],
 ];
@@ -57,6 +59,8 @@ const PLUNGER_SIDE_PROFILE = [
 ];
 const GAP = [12.1, 12.6, 1.8];             // dark ring between plunger and bezel: r0, r1, height
 const RED = 0xc80c16;
+const BEZEL_RADIUS = Math.max(...BEZEL_PROFILE.map(([r]) => r)) * BUTTON_SCALE;
+const BUTTON_CENTRE = new THREE.Vector3(0, BOARD_BOTTOM, BOARD_EDGE_Z + WIRE_LENGTH + BEZEL_RADIUS);
 
 // The bundle: one wire per connection, by HARDWARE.md (5V, GND, status LED "1", trigger "13")
 const WIRES = [
@@ -66,17 +70,17 @@ const WIRES = [
   { colour: 0x2f6fd8 },   // "13": trigger
 ];
 const WIRE_RADIUS = 0.55;
+const WIRE_PITCH = 1.6;                    // side by side where they enter the connector
 const BUNDLE_RADIUS = 0.75;                // wire centres from the bundle's axis
-const BUNDLE_TWISTS = 3;                   // turns along its length
+const BUNDLE_TWISTS = 6;                   // turns along its length
+const FLATTEN_MM = 6;                      // twisted → side by side, either side of the connector
 const WIRE_Y = BOARD_BOTTOM - 0.9;         // runs under the board and the button
-// The bundle's axis: from under the board, out past its edge, under the button
-const BUNDLE_PATH = new THREE.CatmullRomCurve3([
-  new THREE.Vector3(3, WIRE_Y, 4),
-  new THREE.Vector3(7, WIRE_Y, 10),
-  new THREE.Vector3(13, WIRE_Y, 14),
-  new THREE.Vector3(20, WIRE_Y, 11),
-  new THREE.Vector3(28, WIRE_Y, 7),
-]);
+// The bundle's axis: straight down from under the board to under the button
+const BUNDLE_PATH = new THREE.LineCurve3(
+  new THREE.Vector3(0, WIRE_Y, 4), new THREE.Vector3(0, WIRE_Y, BUTTON_CENTRE.z));
+// The inline connector: plug and socket, halfway along the showing wire
+const CONNECTOR = { length: 12, width: 6.8, height: 3.2, seam: 0.5 };
+const CONNECTOR_Z = BOARD_EDGE_Z + WIRE_LENGTH / 2;
 
 const figure = document.getElementById('scene');
 
@@ -106,31 +110,58 @@ function makeArcadeButton() {
   return button;
 }
 
-// One wire of a twisted bundle: the axis plus a rotating offset across it
+const clamp01 = x => Math.min(Math.max(x, 0), 1);
+const ease = x => x * x * (3 - 2 * x);
+
+// One wire of the bundle at arc-length fraction u along the axis: twisted round the
+// axis, easing into a row side by side where it enters the connector (at connectorU)
 class BundleWire extends THREE.Curve {
-  constructor(axis, phase) {
+  constructor(axis, index, connectorU) {
     super();
     this.axis = axis;
-    this.phase = phase;
+    this.index = index;
+    this.connectorU = connectorU;
+    this.length = axis.getLength();
   }
-  getPoint(t, target = new THREE.Vector3()) {
-    const tangent = this.axis.getTangent(t);
+  getPoint(u, target = new THREE.Vector3()) {
+    const tangent = this.axis.getTangentAt(u);
     const across = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();   // horizontal
-    const angle = this.phase + 2 * Math.PI * BUNDLE_TWISTS * t;
-    return this.axis.getPoint(t, target)
-      .addScaledVector(across, BUNDLE_RADIUS * Math.cos(angle))
-      .add(new THREE.Vector3(0, BUNDLE_RADIUS * Math.sin(angle), 0));
+    const angle = 2 * Math.PI * (this.index / WIRES.length + BUNDLE_TWISTS * u);
+    const fromConnector = Math.abs(u - this.connectorU) * this.length - CONNECTOR.length / 2;
+    const flat = ease(1 - clamp01(fromConnector / FLATTEN_MM));
+    const row = (this.index - (WIRES.length - 1) / 2) * WIRE_PITCH;
+    const side = THREE.MathUtils.lerp(BUNDLE_RADIUS * Math.cos(angle), row, flat);
+    const up = BUNDLE_RADIUS * Math.sin(angle) * (1 - flat);
+    this.axis.getPointAt(u, target).addScaledVector(across, side);
+    target.y += up;
+    return target;
   }
 }
 
-function makeWires() {
+function makeWires(connectorU) {
   const wires = new THREE.Group();
   WIRES.forEach(({ colour }, i) => {
-    const curve = new BundleWire(BUNDLE_PATH, 2 * Math.PI * i / WIRES.length);
-    wires.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 200, WIRE_RADIUS, 12),
+    wires.add(new THREE.Mesh(new THREE.TubeGeometry(new BundleWire(BUNDLE_PATH, i, connectorU), 600, WIRE_RADIUS, 12),
       new THREE.MeshStandardMaterial({ color: colour, roughness: 0.45 })));
   });
   return wires;
+}
+
+// Plug and socket: two black housings with a seam between them, centred on the
+// origin and lying along Z
+function makeConnector() {
+  const { length, width, height, seam } = CONNECTOR;
+  const plastic = new THREE.MeshStandardMaterial({ color: 0x1c1d21, roughness: 0.5 });
+  const half = (length - seam) / 2;
+  const socket = new THREE.Mesh(new THREE.BoxGeometry(width, height, half), plastic);
+  socket.position.z = -(seam + half) / 2;
+  const plug = new THREE.Mesh(new THREE.BoxGeometry(width - 0.6, height - 0.4, half), plastic);
+  plug.position.z = (seam + half) / 2;
+  const core = new THREE.Mesh(new THREE.BoxGeometry(width - 1.4, height - 1, seam + 0.2),
+    new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.6 }));
+  const connector = new THREE.Group();
+  connector.add(socket, plug, core);
+  return connector;
 }
 
 async function start() {
@@ -146,18 +177,33 @@ async function start() {
   sun.position.set(18, 45, -12);
   scene.add(sun);
 
-  // Face on from straight above, USB-C at the top
-  const camera = new THREE.PerspectiveCamera(25, 16 / 9, 1, 500);
+  // Face on from straight above, USB-C at the top; framed to fit on resize
+  const camera = new THREE.PerspectiveCamera(25, 3 / 4, 1, 1000);
   camera.up.set(0, 0, -1);
-  camera.position.set(16, 110, 2);
-  camera.lookAt(16, 0, 2);
 
   const gltf = await new GLTFLoader().loadAsync('../models/esp32-s3-zero.glb');
-  scene.add(gltf.scene);
+  const content = new THREE.Group();
+  content.add(gltf.scene);
 
   const button = makeArcadeButton();
-  button.position.copy(BUTTON_CENTRE).setY(BOARD_BOTTOM);
-  scene.add(button, makeWires());
+  button.scale.setScalar(BUTTON_SCALE);
+  button.position.copy(BUTTON_CENTRE);
+  const connectorU = (CONNECTOR_Z - BUNDLE_PATH.v1.z) / (BUNDLE_PATH.v2.z - BUNDLE_PATH.v1.z);
+  const connector = makeConnector();
+  connector.position.copy(BUNDLE_PATH.getPointAt(connectorU));
+  content.add(button, makeWires(connectorU), connector);
+  scene.add(content);
+
+  const MARGIN = 1.12;
+  const box = new THREE.Box3().setFromObject(content);
+  const centre = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  function frame() {
+    const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    const distance = MARGIN * Math.max(size.z / 2 / tan, size.x / 2 / (tan * camera.aspect));
+    camera.position.set(centre.x, box.max.y + distance, centre.z);
+    camera.lookAt(centre.x, 0, centre.z);
+  }
 
   new ResizeObserver(() => {
     const { clientWidth: w, clientHeight: h } = canvas;
@@ -165,6 +211,7 @@ async function start() {
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    frame();
     renderer.render(scene, camera);
   }).observe(canvas);
 
