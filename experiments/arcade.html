@@ -30,7 +30,7 @@
 <body>
 <main>
   <figure class="scene" id="scene" hidden
-          role="img" aria-label="The ESP32-S3-Zero with two inches of wire, joined by a small black connector halfway, running to a round red arcade button below it.">
+          role="img" aria-label="The ESP32-S3-Zero with half an inch of wire either side of a small black connector, running to a round red arcade button below it.">
     <canvas aria-hidden="true"></canvas>
   </figure>
 </main>
@@ -45,8 +45,12 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const BOARD_BOTTOM = -1.6;                 // PCB underside; everything rests on this plane
 const BOARD_EDGE_Z = 11.75;                // the Zero's bottom edge (antenna end)
-const WIRE_LENGTH  = 50.8;                 // 2 in of wire showing, board edge to bezel edge
-const BUTTON_SCALE = 0.5;                  // of a 30 mm arcade button
+const WIRE_EACH_SIDE = 12.7;               // ½ in of wire showing either side of the connector
+const BUTTON_SCALE = 0.75;                 // of a 30 mm arcade button
+// The inline connector: plug and socket, halfway between the board and the button
+const CONNECTOR = { length: 12, width: 6.8, height: 3.2, seam: 0.5 };
+const WIRE_LENGTH  = 2 * WIRE_EACH_SIDE + CONNECTOR.length;   // board edge to bezel edge
+const CONNECTOR_Z = BOARD_EDGE_Z + WIRE_EACH_SIDE + CONNECTOR.length / 2;
 // The arcade button at full size: bezel flange and domed plunger, as (radius, height) profiles
 const BEZEL_PROFILE = [
   [12.6, 0], [12.6, 2.3], [13.1, 2.9], [14.6, 3.0], [15.9, 2.5], [16.5, 1.5], [16.5, 0],
@@ -72,15 +76,12 @@ const WIRES = [
 const WIRE_RADIUS = 0.55;
 const WIRE_PITCH = 1.6;                    // side by side where they enter the connector
 const BUNDLE_RADIUS = 0.75;                // wire centres from the bundle's axis
-const BUNDLE_TWISTS = 6;                   // turns along its length
-const FLATTEN_MM = 6;                      // twisted → side by side, either side of the connector
+const BUNDLE_TWISTS = 5;                   // turns along its length
+const FLATTEN_MM = 4;                      // twisted → side by side, either side of the connector
 const WIRE_Y = BOARD_BOTTOM - 0.9;         // runs under the board and the button
 // The bundle's axis: straight down from under the board to under the button
 const BUNDLE_PATH = new THREE.LineCurve3(
   new THREE.Vector3(0, WIRE_Y, 4), new THREE.Vector3(0, WIRE_Y, BUTTON_CENTRE.z));
-// The inline connector: plug and socket, halfway along the showing wire
-const CONNECTOR = { length: 12, width: 6.8, height: 3.2, seam: 0.5 };
-const CONNECTOR_Z = BOARD_EDGE_Z + WIRE_LENGTH / 2;
 
 const figure = document.getElementById('scene');
 
