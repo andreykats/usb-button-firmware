@@ -20,17 +20,19 @@ const T_SETTINGS = T_RESTART + RESTART_S;
 const T_RELEASE  = T_SETTINGS + 0.8;
 const T_END      = T_SETTINGS + 2 * RAINBOW_PERIOD_S;
 const T_STILL    = T_PRESS + 2.5;          // the frame shown with reduced motion
-const PRESS_S    = 0.35;                   // finger moving onto / off BOOT
+const PRESS_S    = 0.35;                   // hand moving onto / off BOOT
 
 // Scene sizes, in mm like the model
 const PLUNGER_TRAVEL = 0.25;
 const USB_C_CENTRE_Y = 1.6;                // receptacle shell centre above the PCB
-// The finger comes in from the left, tip to hand along FINGER_AXIS. It's slimmer than
-// life so its tip stops short of the LED; it touches BOOT left of the plunger's centre.
-const FINGER_AXIS   = new THREE.Vector3(-1, 0.3, 0.1).normalize();
-const FINGER_RADIUS = 2.5;
-const FINGER_LIFT   = 5;                   // how far it backs off BOOT, along its axis
-const FINGER_TOUCH_X = -0.5;               // contact point, from the plunger's centre
+// A 👉 hand comes in from the left. Smaller than life, so the fingertip stops short of
+// the LED; it touches BOOT left of the plunger's centre.
+const INDEX_RADIUS   = 1.3;
+const HAND_PITCH     = -0.22;              // rad: wrist raised, fingertip down
+const HAND_LIFT_DIR  = new THREE.Vector3(-1, 0.6, 0).normalize();
+const HAND_LIFT      = 4;                  // how far it backs off BOOT
+const HAND_TOUCH_X   = -0.3;               // contact point, from the plunger's centre
+const HAND_YELLOW    = 0xffc83d;           // emoji yellow
 const ACCENT = 0x3B3FD6;                   // --accent
 
 const figure = document.getElementById('howto');
@@ -60,7 +62,7 @@ function ledColour(t) {
 const clamp01 = x => Math.min(Math.max(x, 0), 1);
 const ease = x => x * x * (3 - 2 * x);
 
-// 0 = finger off BOOT, 1 = BOOT fully down
+// 0 = hand off BOOT, 1 = BOOT fully down
 function pressAmount(t) {
   if (t < T_PRESS) return ease(clamp01((t - (T_PRESS - PRESS_S)) / PRESS_S));
   return 1 - ease(clamp01((t - T_RELEASE) / PRESS_S));
@@ -79,20 +81,21 @@ function glowTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+function roundedRect(w, h, r) {
+  const s = new THREE.Shape();
+  s.moveTo(-w / 2 + r, -h / 2);
+  s.lineTo(w / 2 - r, -h / 2);  s.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
+  s.lineTo(w / 2, h / 2 - r);   s.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
+  s.lineTo(-w / 2 + r, h / 2);  s.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r);
+  s.lineTo(-w / 2, -h / 2 + r); s.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+  return s;
+}
+
 // The USB-C cable, plugged into the receptacle whose mouth is at z = mouthZ
 function makeCable(mouthZ) {
   const cable = new THREE.Group();
   const plastic = new THREE.MeshStandardMaterial({ color: 0x2b2e34, roughness: 0.55 });
   const steel = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, metalness: 1, roughness: 0.35 });
-  const roundedRect = (w, h, r) => {
-    const s = new THREE.Shape();
-    s.moveTo(-w / 2 + r, -h / 2);
-    s.lineTo(w / 2 - r, -h / 2);  s.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
-    s.lineTo(w / 2, h / 2 - r);   s.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
-    s.lineTo(-w / 2 + r, h / 2);  s.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r);
-    s.lineTo(-w / 2, -h / 2 + r); s.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
-    return s;
-  };
   const neck = new THREE.Mesh(new THREE.ExtrudeGeometry(roundedRect(8.3, 2.5, 1.2),
     { depth: 1.2, bevelEnabled: false }), steel);
   neck.position.set(0, USB_C_CENTRE_Y, mouthZ - 1.0);
@@ -106,28 +109,48 @@ function makeCable(mouthZ) {
   return cable;
 }
 
-// A finger that presses BOOT. Its origin is the centre of the rounded tip; local +Y
-// runs along FINGER_AXIS towards the hand and local +Z is the nail side, turned up.
-function makeFinger() {
-  const LENGTH = 60;
-  const r = FINGER_RADIUS;
-  const finger = new THREE.Group();
-  const skin = new THREE.Mesh(new THREE.CapsuleGeometry(r, LENGTH, 12, 32),
-    new THREE.MeshStandardMaterial({ color: 0xdba184, roughness: 0.6 }));
-  skin.position.y = LENGTH / 2;
-  const nail = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16),
-    new THREE.MeshStandardMaterial({ color: 0xeebcaa, roughness: 0.3 }));
-  nail.scale.set(0.55 * r, 0.8 * r, 0.1 * r);
-  nail.position.set(0, 0.6 * r, r - 0.05);
-  finger.add(skin, nail);
+// A right hand pointing like 👉, palm down: a fist with the index finger out along +X,
+// the back of the hand up and the thumb on the -Z side (towards the USB-C end). Its
+// origin is the centre of the index fingertip, which presses BOOT.
+function makeHand() {
+  const skin = new THREE.MeshStandardMaterial({ color: HAND_YELLOW, roughness: 0.55 });
+  const hand = new THREE.Group();
+  const posed = new THREE.Group();
+  posed.rotation.z = HAND_PITCH;
+  hand.add(posed);
 
-  const along = FINGER_AXIS.clone();
-  const up = new THREE.Vector3(0, 1, 0);
-  const nailSide = up.addScaledVector(along, -up.dot(along)).normalize();
-  const side = new THREE.Vector3().crossVectors(along, nailSide);
-  finger.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, along, nailSide));
-  finger.traverse(o => { o.castShadow = true; });
-  return finger;
+  // A capsule of radius r along X, its rounded ends centred on x0 and x1
+  const digit = (r, x0, x1, y, z) => {
+    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(r, x1 - x0, 8, 24), skin);
+    mesh.rotation.z = Math.PI / 2;
+    mesh.position.set((x0 + x1) / 2, y, z);
+    posed.add(mesh);
+    return mesh;
+  };
+  const r = INDEX_RADIUS;
+  digit(r, -6, 0, 0, 0);                    // index finger
+  digit(1.25, -6.5, -2.9, -0.35, 2.45);     // middle, ring and little fingers, curled:
+  digit(1.2, -6.5, -3.3, -0.45, 4.75);      // their knuckles in a row below the index
+  digit(1.05, -6.5, -3.9, -0.5, 6.8);
+  digit(1.2, -10, -4.6, 0.9, -1.7);         // thumb, along the index finger
+  const wrist = digit(2.2, -16.5, -13, -0.2, 3);
+  wrist.scale.z = 1.6;                      // capsule's local Z is still the world's Z
+
+  const fist = new THREE.Mesh(new THREE.ExtrudeGeometry(roundedRect(9, 10, 3.2),
+    { depth: 2.6, bevelThickness: 0.9, bevelSize: 0.9, bevelSegments: 4, curveSegments: 10 }), skin);
+  fist.geometry.center();
+  fist.geometry.rotateX(-Math.PI / 2);      // lying flat, back of the hand up
+  fist.position.set(-10.2, -0.1, 3);
+  posed.add(fist);
+
+  const nail = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12),
+    new THREE.MeshStandardMaterial({ color: 0xffe08a, roughness: 0.3 }));
+  nail.scale.set(0.85 * r, 0.1 * r, 0.6 * r);
+  nail.position.set(-0.75 * r, r - 0.05, 0);
+  posed.add(nail);
+
+  hand.traverse(o => { o.castShadow = true; });
+  return hand;
 }
 
 // A ring around BOOT that fills over SETTINGS_HOLD_S, clockwise from the top
@@ -159,7 +182,7 @@ async function startHowto() {
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.8;
-  // From the top right, so the finger's shadow falls away from the LED
+  // From the top right, so the hand's shadow falls away from the LED
   const sun = new THREE.DirectionalLight(0xffffff, 1.8);
   sun.position.set(18, 45, -12);
   sun.castShadow = true;
@@ -208,12 +231,12 @@ async function startHowto() {
   const cable = makeCable(boardBox.min.z);
   cable.traverse(o => { o.castShadow = true; });
   scene.add(cable);
-  const finger = makeFinger();
-  // Where the tip's centre is when it just touches the plunger
-  const touch = new THREE.Vector3(bootCentre.x + FINGER_TOUCH_X, plungerTop + FINGER_RADIUS, bootCentre.z);
+  const hand = makeHand();
+  // Where the fingertip's centre is when it just touches the plunger
+  const touch = new THREE.Vector3(bootCentre.x + HAND_TOUCH_X, plungerTop + INDEX_RADIUS, bootCentre.z);
   const ring = makeProgressRing();
   ring.position.set(bootCentre.x, 0.02, bootCentre.z);
-  scene.add(finger, ring);
+  scene.add(hand, ring);
 
   const colour = new THREE.Color();
   const bootRestY = boot.position.y;
@@ -221,10 +244,10 @@ async function startHowto() {
   function pose(t) {
     const press = pressAmount(t);
     const bob = 0.3 * Math.sin(2 * Math.PI * 6 * t / T_END) * (1 - press);
-    // Backs off along its own axis, presses straight down; BOOT moves once touched
-    finger.position.copy(touch).addScaledVector(FINGER_AXIS, (FINGER_LIFT + bob) * (1 - press));
-    finger.position.y -= PLUNGER_TRAVEL * press;
-    const gap = finger.position.y - touch.y;
+    // Backs off up and away, presses straight down; BOOT moves once touched
+    hand.position.copy(touch).addScaledVector(HAND_LIFT_DIR, (HAND_LIFT + bob) * (1 - press));
+    hand.position.y -= PLUNGER_TRAVEL * press;
+    const gap = hand.position.y - touch.y;
     boot.position.y = bootRestY + Math.max(-PLUNGER_TRAVEL, Math.min(0, gap));
 
     ring.visible = t >= T_PRESS - PRESS_S && t < T_RELEASE;
