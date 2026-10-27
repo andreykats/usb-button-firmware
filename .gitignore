@@ -19,6 +19,9 @@ build/
 *.bin
 *.map
 
+# Not a build artifact: three.js ships its modules in build/ (vendored for the settings page)
+!vendor/three/build/
+
 # Python cache/artifacts
 __pycache__/
 *.py[cod]
