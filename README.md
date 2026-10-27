@@ -1,7 +1,5 @@
 # USB Button
 
-<img src="resources/arcade-button-scene-horizontal.png" width="168" alt="The USB Button: a Waveshare ESP32-S3-Zero wired to a red arcade button">
-
 A one-key USB keyboard you can build from a small microcontroller board, a push button
 and an LED. Plug it into a computer, press the trigger button, and the computer receives
 the selected key as if it were typed on a keyboard. It is a standard USB HID keyboard, so
