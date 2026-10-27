@@ -30,7 +30,7 @@ const USB_C_CENTRE_Y = 1.6;                // receptacle shell centre above the 
 const HAND_SIZE_MM = 14;                   // the icon's 24-unit box at the board's scale
 const HAND_TIP     = [8, 4];               // icon units: the fingertip's centre, put on BOOT
 const HAND_LIFT    = 3;                    // mm it backs off BOOT, away from its fingertip
-const ACCENT = 0x3B3FD6;                   // --accent
+const RING_COLOUR = 0xFF8A00;              // hold-time ring: orange
 
 const figure = document.getElementById('howto');
 const hand = figure.querySelector('.howto-hand');
@@ -112,9 +112,9 @@ function makeProgressRing() {
   const SEGMENTS = 96;
   const geometry = new THREE.RingGeometry(2.3, 2.95, SEGMENTS, 1, -Math.PI / 2, Math.PI * 2);
   const track = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial(
-    { color: ACCENT, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false }));
+    { color: RING_COLOUR, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false }));
   const fill = new THREE.Mesh(geometry.clone(), new THREE.MeshBasicMaterial(
-    { color: ACCENT, side: THREE.DoubleSide }));
+    { color: RING_COLOUR, side: THREE.DoubleSide }));
   const ring = new THREE.Group();
   for (const mesh of [track, fill]) {
     mesh.rotation.x = Math.PI / 2;   // flat on the board; θ then runs clockwise seen from above
