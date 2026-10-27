@@ -40,6 +40,10 @@ git worktree add ../usb-button-web web-serial-interface
 Also update the settings table in README.md here, and port the change to
 `ws-esp32s3-matrix` (and its README).
 
+The page's settings-mode animation (`howto.js` there) replays this firmware's timings:
+changing `SETTINGS_HOLD_MS`, `RAINBOW_PERIOD_MS`, `RAINBOW_START_POS`, `colorWheel()` or
+`COLOR_GREEN` means updating it too.
+
 ## Key facts
 
 - Pins (from resources/ESP32-S3-Zero-Sch.pdf): BOOT button GPIO0 (only onboard user
