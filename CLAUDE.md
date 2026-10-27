@@ -84,6 +84,9 @@ Two panels show Waveshare's ESP32-S3-Zero acting out their steps, each a script 
   release the LED flashes white and the keycap beside the board steps to the next key.
   The key carries on from loop to loop (1, 2, 3, …), as on the button. The panel is
   hidden while connected: in settings mode BOOT leaves settings mode.
+- The two panels (and "Browser not supported") sit in `.intro`: side by side from a
+  900 px window, the page widening to 1000 px while one shows; stacked below that.
+  Connected, the page is back to 620 px.
 
 No text over them, bar the keycap: the steps below say it. The hand is a flat outline
 (Lucide's "pointer" icon, ISC, inline SVG in a `<template>` in `index.html` with a white

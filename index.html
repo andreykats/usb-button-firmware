@@ -78,6 +78,13 @@
     letter-spacing: .08em; color: var(--muted);
   }
   .panel > p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+
+  /* Before connecting: Connect and Change the key side by side where there's room,
+     the page widening for them; stacked otherwise */
+  @media (min-width: 900px) {
+    main:has(.intro > .panel:not([hidden])) { max-width: 1000px; }
+    .intro { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }
+  }
   ol.steps { margin: 6px 0 16px; padding-left: 20px; }
   ol.steps li { margin: 4px 0; }
 
@@ -242,38 +249,40 @@
     </svg>
   </template>
 
-  <section class="panel" id="connectPanel">
-    <h2>Connect</h2>
-    <figure class="howto" id="howto" hidden
-            role="img" aria-label="Animation: hold BOOT for 3 seconds; the button restarts and its light cycles through all colours.">
-      <canvas aria-hidden="true"></canvas>
-    </figure>
-    <ol class="steps">
-      <li>Plug the button into this computer.</li>
-      <li>Hold <b>BOOT</b> for 3 seconds. The button restarts and its light cycles through all colours.</li>
-      <li>Click <b>Connect</b> and choose <b>USB Button</b>. It’s listed with the button’s key and ID, e.g. “USB Button [2] (EB:F4:58)”.</li>
-    </ol>
-    <button class="primary" id="connectBtn">Connect</button>
-  </section>
+  <div class="intro">
+    <section class="panel" id="connectPanel">
+      <h2>Connect</h2>
+      <figure class="howto" id="howto" hidden
+              role="img" aria-label="Animation: hold BOOT for 3 seconds; the button restarts and its light cycles through all colours.">
+        <canvas aria-hidden="true"></canvas>
+      </figure>
+      <ol class="steps">
+        <li>Plug the button into this computer.</li>
+        <li>Hold <b>BOOT</b> for 3 seconds. The button restarts and its light cycles through all colours.</li>
+        <li>Click <b>Connect</b> and choose <b>USB Button</b>. It’s listed with the button’s key and ID, e.g. “USB Button [2] (EB:F4:58)”.</li>
+      </ol>
+      <button class="primary" id="connectBtn">Connect</button>
+    </section>
 
-  <section class="panel" id="keyStepPanel">
-    <h2>Change the key</h2>
-    <figure class="howto" id="howtoKey" hidden
-            role="img" aria-label="Animation: press and release BOOT; the light flashes white and the button switches to the next key.">
-      <canvas aria-hidden="true"></canvas>
-      <span class="howto-key" aria-hidden="true"></span>
-    </figure>
-    <ol class="steps">
-      <li>Press <b>BOOT</b> and let go.</li>
-      <li>The button switches to the next key and types it, so you can see which key it is now. Keys go a to z, then 0 to 9.</li>
-    </ol>
-    <p>Let go within 3 seconds: holding <b>BOOT</b> longer restarts the button for this page instead.</p>
-  </section>
+    <section class="panel" id="unsupportedPanel" hidden>
+      <h2>Browser not supported</h2>
+      <p>This page talks to the button over Web Serial. Use Chrome, Edge, Opera or Firefox (151 or later) on a computer; Safari doesn’t support it.</p>
+    </section>
 
-  <section class="panel" id="unsupportedPanel" hidden>
-    <h2>Browser not supported</h2>
-    <p>This page talks to the button over Web Serial. Use Chrome, Edge, Opera or Firefox (151 or later) on a computer; Safari doesn’t support it.</p>
-  </section>
+    <section class="panel" id="keyStepPanel">
+      <h2>Change the key</h2>
+      <figure class="howto" id="howtoKey" hidden
+              role="img" aria-label="Animation: press and release BOOT; the light flashes white and the button switches to the next key.">
+        <canvas aria-hidden="true"></canvas>
+        <span class="howto-key" aria-hidden="true"></span>
+      </figure>
+      <ol class="steps">
+        <li>Press <b>BOOT</b> and let go.</li>
+        <li>The button switches to the next key and types it, so you can see which key it is now. Keys go a to z, then 0 to 9.</li>
+      </ol>
+      <p>Let go within 3 seconds: holding <b>BOOT</b> longer restarts the button for this page instead.</p>
+    </section>
+  </div>
 
   <form id="settingsForm" hidden>
     <section class="panel">
