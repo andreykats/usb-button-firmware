@@ -13,12 +13,13 @@ const RAINBOW_PERIOD_S  = 3;               // RAINBOW_PERIOD_MS
 const RAINBOW_START_POS = 4 * 256 + 160;   // RAINBOW_START_POS: purple
 const RESTART_S         = 0.3;             // light off while the button restarts
 
-// Timeline, in seconds from the start of each loop
-const T_PRESS    = 1.4;
+// Timeline, in seconds from the start of each loop. The hold is real time; settings
+// mode is shown for half a rainbow cycle (purple to yellow) at the real speed.
+const T_PRESS    = 0.6;
 const T_RESTART  = T_PRESS + SETTINGS_HOLD_S;
 const T_SETTINGS = T_RESTART + RESTART_S;
-const T_RELEASE  = T_SETTINGS + 0.8;
-const T_END      = T_SETTINGS + 2 * RAINBOW_PERIOD_S;
+const T_RELEASE  = T_SETTINGS + 0.5;
+const T_END      = T_SETTINGS + RAINBOW_PERIOD_S / 2;
 const T_STILL    = T_PRESS + 2.5;          // the frame shown with reduced motion
 const PRESS_S    = 0.35;                   // hand moving onto / off BOOT
 
@@ -204,7 +205,7 @@ async function startHowto() {
 
   function pose(t) {
     const press = pressAmount(t);
-    const bob = 0.3 * Math.sin(2 * Math.PI * 6 * t / T_END) * (1 - press);
+    const bob = 0.3 * Math.sin(2 * Math.PI * 3 * t / T_END) * (1 - press);
     // Slides in from the left, then shrinks a little as it presses
     const lift = (HAND_LIFT + bob) * (1 - press) * pxPerMm;
     hand.style.transform = `translateX(${-lift}px) rotate(90deg) scale(${1 - 0.08 * press})`;
