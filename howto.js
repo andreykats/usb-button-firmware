@@ -25,14 +25,27 @@ const PRESS_S    = 0.35;                   // hand moving onto / off BOOT
 // Scene sizes, in mm like the model
 const PLUNGER_TRAVEL = 0.25;
 const USB_C_CENTRE_Y = 1.6;                // receptacle shell centre above the PCB
-// A 👉 hand comes in from the left. Smaller than life, so the fingertip stops short of
-// the LED; it touches BOOT left of the plunger's centre.
-const INDEX_RADIUS   = 1.3;
-const HAND_PITCH     = -0.22;              // rad: wrist raised, fingertip down
+// A pointing hand comes in from the left: models/hand-right.glb, the WebXR
+// Input Profiles "generic-hand" (MIT), posed here. Smaller than life so the fingertip
+// stops short of the LED; its pad touches BOOT left of the plunger's centre.
+const HAND_SCALE     = 165;                // model metres → scene mm
+const HAND_PITCH     = -0.5;               // rad: wrist raised, fingertip down
+const HAND_YAW       = 0.25;               // rad: wrist swung towards the viewer
 const HAND_LIFT_DIR  = new THREE.Vector3(-1, 0.6, 0).normalize();
 const HAND_LIFT      = 4;                  // how far it backs off BOOT
 const HAND_TOUCH_X   = -0.3;               // contact point, from the plunger's centre
-const HAND_YELLOW    = 0xffc83d;           // emoji yellow
+const PAD_SEARCH     = 0.02;               // model m: the pad is the lowest skin this near the tip
+// The model's open hand points its fingers along -Y, back of the hand -X, thumb -Z.
+// Curls in rad per knuckle from the base, positive towards the palm.
+const BACK_OF_HAND = new THREE.Vector3(-1, 0, 0);
+const FINGER_CURLS = {
+  'index-finger':  [0.10, 0.12, 0.08],     // proximal, intermediate, distal
+  'middle-finger': [1.45, 1.75, 0.9],
+  'ring-finger':   [1.5, 1.75, 0.9],
+  'pinky-finger':  [1.55, 1.7, 0.9],
+};
+const THUMB_SWING = 0.6;                   // rad about the back-of-hand axis, at its base
+const THUMB_CURL = [0.5, 0.6, 0.5];        // metacarpal, proximal, distal
 const ACCENT = 0x3B3FD6;                   // --accent
 
 const figure = document.getElementById('howto');
@@ -109,47 +122,71 @@ function makeCable(mouthZ) {
   return cable;
 }
 
-// A right hand pointing like 👉, palm down: a fist with the index finger out along +X,
-// the back of the hand up and the thumb on the -Z side (towards the USB-C end). Its
-// origin is the centre of the index fingertip, which presses BOOT.
-function makeHand() {
-  const skin = new THREE.MeshStandardMaterial({ color: HAND_YELLOW, roughness: 0.55 });
-  const hand = new THREE.Group();
-  const posed = new THREE.Group();
-  posed.rotation.z = HAND_PITCH;
-  hand.add(posed);
+// Bends a finger: each knuckle from `first` on turns every joint past it about itself.
+// The model's joints are all siblings, each posed directly (as WebXR does), so the
+// whole chain is moved rather than relying on a bone hierarchy.
+function curlChain(bones, angles, first) {
+  const axis = new THREE.Vector3();
+  angles.forEach((angle, k) => {
+    const along = bones[first + k + 1].position.clone().sub(bones[first + k].position).normalize();
+    turnJoints(bones, first + k, axis.crossVectors(BACK_OF_HAND, along).normalize(), angle);
+  });
+}
 
-  // A capsule of radius r along X, its rounded ends centred on x0 and x1
-  const digit = (r, x0, x1, y, z) => {
-    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(r, x1 - x0, 8, 24), skin);
-    mesh.rotation.z = Math.PI / 2;
-    mesh.position.set((x0 + x1) / 2, y, z);
-    posed.add(mesh);
-    return mesh;
+// Turns bones[from] and every joint past it about bones[from], by angle around axis
+function turnJoints(bones, from, axis, angle) {
+  const pivot = bones[from].position;
+  const turn = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+  for (let j = from; j < bones.length; j++) {
+    if (j > from) bones[j].position.sub(pivot).applyQuaternion(turn).add(pivot);
+    bones[j].quaternion.premultiply(turn);
+  }
+}
+
+// The hand posed into a point, palm down, index finger along +X and thumb towards the
+// viewer (+Z), as a hand reaching in from the left. Its origin is the index fingertip's pad.
+function makeHand(gltf) {
+  const model = gltf.scene;
+  const bone = name => {
+    const b = model.getObjectByName(name);
+    if (!b) throw new Error(`hand model lacks the ${name} joint`);
+    return b;
   };
-  const r = INDEX_RADIUS;
-  digit(r, -6, 0, 0, 0);                    // index finger
-  digit(1.25, -6.5, -2.9, -0.35, 2.45);     // middle, ring and little fingers, curled:
-  digit(1.2, -6.5, -3.3, -0.45, 4.75);      // their knuckles in a row below the index
-  digit(1.05, -6.5, -3.9, -0.5, 6.8);
-  digit(1.2, -10, -4.6, 0.9, -1.7);         // thumb, along the index finger
-  const wrist = digit(2.2, -16.5, -13, -0.2, 3);
-  wrist.scale.z = 1.6;                      // capsule's local Z is still the world's Z
+  for (const [finger, angles] of Object.entries(FINGER_CURLS)) {
+    curlChain(['metacarpal', 'phalanx-proximal', 'phalanx-intermediate', 'phalanx-distal', 'tip']
+      .map(joint => bone(`${finger}-${joint}`)), angles, 1);
+  }
+  const thumb = ['metacarpal', 'phalanx-proximal', 'phalanx-distal', 'tip'].map(joint => bone(`thumb-${joint}`));
+  turnJoints(thumb, 0, BACK_OF_HAND, THUMB_SWING);
+  curlChain(thumb, THUMB_CURL, 0);
 
-  const fist = new THREE.Mesh(new THREE.ExtrudeGeometry(roundedRect(9, 10, 3.2),
-    { depth: 2.6, bevelThickness: 0.9, bevelSize: 0.9, bevelSegments: 4, curveSegments: 10 }), skin);
-  fist.geometry.center();
-  fist.geometry.rotateX(-Math.PI / 2);      // lying flat, back of the hand up
-  fist.position.set(-10.2, -0.1, 3);
-  posed.add(fist);
+  let skin = null;
+  model.traverse(o => { if (o.isSkinnedMesh) skin = o; });
+  if (!skin) throw new Error('hand model has no skinned mesh');
+  skin.material = new THREE.MeshPhysicalMaterial({
+    color: 0xe7b495, roughness: 0.55, sheen: 0.6, sheenColor: 0xffcdb4, sheenRoughness: 0.5 });
+  skin.castShadow = true;
+  skin.frustumCulled = false;   // its bounds are the open hand's
 
-  const nail = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12),
-    new THREE.MeshStandardMaterial({ color: 0xffe08a, roughness: 0.3 }));
-  nail.scale.set(0.85 * r, 0.1 * r, 0.6 * r);
-  nail.position.set(-0.75 * r, r - 0.05, 0);
-  posed.add(nail);
+  // Model → scene: back of the hand (-X) up, fingers (-Y) to +X, thumb (-Z) to +Z
+  const oriented = new THREE.Group();
+  oriented.add(model);
+  oriented.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+    new THREE.Vector3(0, -1, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, -1)));
+  oriented.quaternion.premultiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, HAND_YAW, HAND_PITCH)));
+  oriented.scale.setScalar(HAND_SCALE);
+  const hand = new THREE.Group();
+  hand.add(oriented);
+  hand.updateMatrixWorld(true);
 
-  hand.traverse(o => { o.castShadow = true; });
+  const tip = bone('index-finger-tip').getWorldPosition(new THREE.Vector3());
+  const v = new THREE.Vector3();
+  let pad = null;
+  for (let i = 0; i < skin.geometry.attributes.position.count; i++) {
+    skin.localToWorld(skin.getVertexPosition(i, v));
+    if (v.distanceTo(tip) < PAD_SEARCH * HAND_SCALE && (!pad || v.y < pad.y)) pad = v.clone();
+  }
+  oriented.position.sub(pad);
   return hand;
 }
 
@@ -194,10 +231,12 @@ async function startHowto() {
   // Face on from straight above, USB-C at the top like Waveshare's pinout drawing
   const camera = new THREE.PerspectiveCamera(25, 16 / 9, 1, 500);
   camera.up.set(0, 0, -1);
-  camera.position.set(0, 78, -1);
-  camera.lookAt(0, 0, -1);
+  camera.position.set(-4, 90, 1);
+  camera.lookAt(-4, 0, 1);
 
-  const gltf = await new GLTFLoader().loadAsync('models/esp32-s3-zero.glb');
+  const loader = new GLTFLoader();
+  const [gltf, handGltf] = await Promise.all([
+    loader.loadAsync('models/esp32-s3-zero.glb'), loader.loadAsync('models/hand-right.glb')]);
   const board = gltf.scene;
   board.traverse(o => { o.castShadow = o.receiveShadow = true; });
   scene.add(board);
@@ -231,9 +270,9 @@ async function startHowto() {
   const cable = makeCable(boardBox.min.z);
   cable.traverse(o => { o.castShadow = true; });
   scene.add(cable);
-  const hand = makeHand();
-  // Where the fingertip's centre is when it just touches the plunger
-  const touch = new THREE.Vector3(bootCentre.x + HAND_TOUCH_X, plungerTop + INDEX_RADIUS, bootCentre.z);
+  const hand = makeHand(handGltf);
+  // Where the fingertip's pad is when it just touches the plunger
+  const touch = new THREE.Vector3(bootCentre.x + HAND_TOUCH_X, plungerTop, bootCentre.z);
   const ring = makeProgressRing();
   ring.position.set(bootCentre.x, 0.02, bootCentre.z);
   scene.add(hand, ring);
