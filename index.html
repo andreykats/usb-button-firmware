@@ -253,26 +253,26 @@
     <section class="panel" id="keyStepPanel">
       <h2>Change the key</h2>
       <figure class="howto" id="howtoKey" hidden
-              role="img" aria-label="Animation: press and release BOOT; the light flashes white and the button switches to the next key.">
+              role="img" aria-label="Animation: press and release LEFT BUTTON; the light flashes white and the button switches to the next key.">
         <canvas aria-hidden="true"></canvas>
         <span class="howto-key" aria-hidden="true"></span>
       </figure>
       <ol class="steps">
-        <li>Press <b>BOOT</b> and let go.</li>
+        <li>Press <b>LEFT BUTTON</b> and let go.</li>
         <li>The button switches to the next key and types it, so you can see which key it is now. Keys go a to z, then 0 to 9.</li>
       </ol>
-      <p>Let go within 3 seconds: holding <b>BOOT</b> longer restarts the button for this page instead.</p>
+      <p>Let go within 3 seconds: holding <b>LEFT BUTTON</b> longer restarts the button for this page instead.</p>
     </section>
 
     <section class="panel" id="connectPanel">
       <h2>Connect</h2>
       <figure class="howto" id="howto" hidden
-              role="img" aria-label="Animation: hold BOOT for 3 seconds; the button restarts and its light cycles through all colours.">
+              role="img" aria-label="Animation: hold LEFT BUTTON for 3 seconds; the button restarts and its light cycles through all colours.">
         <canvas aria-hidden="true"></canvas>
       </figure>
       <ol class="steps">
-        <li>Plug the button into this computer.</li>
-        <li>Hold <b>BOOT</b> for 3 seconds. The button restarts and its light cycles through all colours.</li>
+        <li>Plug the USB Button into this computer.</li>
+        <li>Hold <b>LEFT BUTTON</b> for 3 seconds. The button restarts and its light cycles through all colours.</li>
         <li>Click <b>Connect</b> and choose <b>USB Button</b>. It’s listed with the button’s key and ID, e.g. “USB Button [2] (EB:F4:58)”.</li>
       </ol>
       <button class="primary" id="connectBtn">Connect</button>
@@ -287,7 +287,7 @@
   <form id="settingsForm" hidden>
     <section class="panel">
       <h2>Key</h2>
-      <p>The key the trigger types. <b>BOOT</b> also steps through them in normal use. <b>Restore defaults</b> keeps the key.</p>
+      <p>The key the trigger types. <b>LEFT BUTTON</b> also steps through them in normal use. <b>Restore defaults</b> keeps the key.</p>
       <fieldset data-setting="key">
         <legend>Key to type<span class="saved"></span></legend>
         <div class="keys" id="keyChoices"></div>
@@ -596,7 +596,7 @@ async function connect(candidate, quiet = false) {
     setStatus('Connected — changes are saved on the button as you make them.');
   } catch (_) {
     await closePort();
-    if (!quiet) setStatus('The button didn’t answer, so it isn’t in settings mode. Hold BOOT for 3 seconds until the light cycles through colours, then connect again.', true);
+    if (!quiet) setStatus('The button didn’t answer, so it isn’t in settings mode. Hold LEFT BUTTON for 3 seconds until the light cycles through colours, then connect again.', true);
   }
 }
 
@@ -617,7 +617,7 @@ function onPortClosed() {
   if (exiting) {
     setStatus('Disconnected. The button restarted and is a keyboard again.');
   } else if (wasConnected) {
-    setStatus('The button disconnected. It is back in normal use unless you hold BOOT for 3 seconds again.', true);
+    setStatus('The button disconnected. It is back in normal use unless you hold LEFT BUTTON for 3 seconds again.', true);
   }
 }
 

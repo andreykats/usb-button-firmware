@@ -29,14 +29,14 @@ In a browser without Web Serial the page says so instead of showing the settings
 ## Using it
 
 1. Plug the button into the computer.
-2. Hold **BOOT** for 3 seconds. The button restarts and its status light cycles through
+2. Hold **LEFT BUTTON** for 3 seconds. The button restarts and its status light cycles through
    all colours (settings mode).
 3. Open [button.drey.dev](https://button.drey.dev), click **Connect** and choose the
    **USB Button** entry, e.g. `USB Button [2] (EB:F4:58)`.
 4. Change settings; each is saved on the button straight away.
-5. Click **Disconnect**, or press BOOT or RESET, to go back to normal use.
+5. Click **Disconnect**, or press LEFT BUTTON or RESET, to go back to normal use.
 
-The key can also be changed without the page: in normal use, press and release **BOOT**.
+The key can also be changed without the page: in normal use, press and release **LEFT BUTTON**.
 The button switches to the next key (a to z, then 0 to 9), types it and flashes white.
 The page shows this too, next to the steps for connecting.
 
