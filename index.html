@@ -79,17 +79,6 @@
   }
   .panel > p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
 
-  /* Before connecting: Change the key, Connect and the light legend as equal cells,
-     the page widening for them: three across where there's room, then two, then stacked */
-  @media (min-width: 900px) {
-    main:has(.intro:not([hidden])) { max-width: 1000px; }
-    .intro { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }
-  }
-  @media (min-width: 1300px) {
-    main:has(.intro:not([hidden])) { max-width: 1440px; }
-    .intro { grid-template-columns: repeat(3, 1fr); }
-  }
-
   /* Status light legend: the firmware's colours and blink rates */
   .legend { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 12px; }
   .legend li { display: grid; grid-template-columns: 16px 1fr; gap: 12px; font-size: 14px; }
@@ -279,7 +268,7 @@
     </svg>
   </template>
 
-  <div class="intro" id="intro">
+  <div id="intro">
     <section class="panel" id="keyStepPanel">
       <h2>Quick change key</h2>
       <figure class="howto" id="howtoKey" hidden

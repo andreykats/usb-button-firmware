@@ -85,10 +85,8 @@ Two panels show Waveshare's ESP32-S3-Zero acting out their steps, each a script 
   The key carries on from loop to loop (1, 2, 3, …), as on the button. The panel is
   hidden while connected: in settings mode BOOT leaves settings mode.
 - The two panels, then the status light legend (and "Browser not supported" in Connect's
-  place), are equal cells in `#intro`, Change the key first: three across from a 1300 px
-  window (page up to 1440 px), two across from 900 px (page 1000 px, the legend under
-  Change the key), stacked below that. Connected, `#intro` is hidden and the page is
-  back to 620 px.
+  place), are stacked in `#intro`, Change the key first, at the page's 620 px at every
+  window width (the user dropped side-by-side layouts). Connected, `#intro` is hidden.
 
 ## Light legend
 
