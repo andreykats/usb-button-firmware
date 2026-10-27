@@ -84,10 +84,19 @@ Two panels show Waveshare's ESP32-S3-Zero acting out their steps, each a script 
   release the LED flashes white and the keycap beside the board steps to the next key.
   The key carries on from loop to loop (1, 2, 3, …), as on the button. The panel is
   hidden while connected: in settings mode BOOT leaves settings mode.
-- The two panels (and "Browser not supported") sit in `.intro`, Change the key first
-  (left, or on top when stacked): side by side from a
-  900 px window, the page widening to 1000 px while one shows; stacked below that.
-  Connected, the page is back to 620 px.
+- The two panels (and "Browser not supported") sit in `#intro`, Change the key first
+  (left, or on top when stacked): side by side from a 900 px window, the page widening
+  to 1000 px while it shows; stacked below that. "What the light means" (`.wide`) spans
+  both columns under them. Connected, `#intro` is hidden and the page is back to 620 px.
+
+## Light legend
+
+"What the light means" lists the firmware's RGB status LED states (default build,
+`WIFI_ENABLED=0`; the Matrix draws the key in the same colours) with what to do in each.
+Its dots (`.led`, colour in `--c`) use the firmware's colours and blink rates: booting
+yellow 150 ms on/off, `blinkEvery(500)` green/blue, `blinkEvery(250)` error red, white /
+red press feedback, the rainbow from `RAINBOW_START_POS`. Keep it in sync with
+`handleStatusRgb()` and the sketch header's "RGB STATUS LED" table on `ws-esp32s3-zero`.
 
 No text over them, bar the keycap: the steps below say it. The hand is a flat outline
 (Lucide's "pointer" icon, ISC, inline SVG in a `<template>` in `index.html` with a white

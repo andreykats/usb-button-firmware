@@ -80,10 +80,39 @@
   .panel > p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
 
   /* Before connecting: Change the key and Connect side by side where there's room,
-     the page widening for them; stacked otherwise */
+     the page widening for them, with the light legend across both; stacked otherwise */
   @media (min-width: 900px) {
-    main:has(.intro > .panel:not([hidden])) { max-width: 1000px; }
+    main:has(.intro:not([hidden])) { max-width: 1000px; }
     .intro { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }
+    .intro > .wide { grid-column: 1 / -1; }
+  }
+
+  /* Status light legend: the firmware's colours and blink rates */
+  .legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px 28px; }
+  @media (min-width: 640px) { .legend { grid-template-columns: 1fr 1fr; } }
+  .legend li { display: grid; grid-template-columns: 16px 1fr; align-content: start; gap: 0 12px; font-size: 14px; }
+  .legend-do { grid-column: 2; color: var(--muted); font-size: 13px; }
+  .led {
+    width: 16px; height: 16px; margin-top: 2px; border-radius: 50%;
+    background: var(--housing); color: var(--c);
+  }
+  .led::after {
+    content: ""; display: block; width: 100%; height: 100%; border-radius: 50%;
+    background: currentColor; box-shadow: 0 0 7px 1px currentColor, inset 0 0 0 1px rgb(0 0 0 / .2);
+  }
+  .led.off::after       { display: none; }
+  .led.blink-150::after { animation: blink .3s steps(1) infinite; }   /* booting: 150 ms on, 150 off */
+  .led.blink-250::after { animation: blink .5s steps(1) infinite; }   /* error: blinkEvery(250) */
+  .led.blink-500::after { animation: blink 1s steps(1) infinite; }    /* blinkEvery(500) */
+  .led.press::after     { animation: press 2s steps(1) infinite; }    /* a press now and then */
+  .led.rainbow::after {
+    /* RAINBOW_PERIOD_MS, from RAINBOW_START_POS (1184 of 1536: purple) */
+    animation: wheel 3s linear infinite; animation-delay: calc(-3s * 1184 / 1536);
+  }
+  @keyframes press { 0% { opacity: 1; } 30% { opacity: 0; } }
+  @keyframes wheel {   /* colorWheel(): red, yellow, green, cyan, blue, magenta */
+    0%, 100% { color: #f00; } 16.67% { color: #ff0; } 33.33% { color: #0f0; }
+    50% { color: #0ff; } 66.67% { color: #00f; } 83.33% { color: #f0f; }
   }
   ol.steps { margin: 6px 0 16px; padding-left: 20px; }
   ol.steps li { margin: 4px 0; }
@@ -217,6 +246,7 @@
   @media (prefers-reduced-motion: reduce) {
     .board-led.rainbow { animation: none; }
     .lamp.fast::after, .lamp.slow::after, .lamp.breathe::after { animation: none; opacity: .55; }
+    .led::after { animation: none !important; }
     .caret { animation: none; }
   }
 </style>
@@ -249,7 +279,7 @@
     </svg>
   </template>
 
-  <div class="intro">
+  <div class="intro" id="intro">
     <section class="panel" id="keyStepPanel">
       <h2>Quick change key</h2>
       <figure class="howto" id="howtoKey" hidden
@@ -282,6 +312,44 @@
     <section class="panel" id="unsupportedPanel" hidden>
       <h2>Browser not supported</h2>
       <p>This page talks to the button over Web Serial. Use Chrome, Edge, Opera or Firefox (151 or later) on a computer; Safari doesn’t support it.</p>
+    </section>
+
+    <!-- The firmware's RGB status LED states (default build, no WiFi), with its colours -->
+    <section class="panel wide" id="lightPanel">
+      <h2>What the light means</h2>
+      <p>The colour light on the board. On a Matrix button, the key on its display lights up in these colours.</p>
+      <ul class="legend">
+        <li><i class="led off" aria-hidden="true"></i>
+          <span><b>Off</b>: no power.</span>
+          <span class="legend-do">Check the cable, and that the computer or charger is on.</span></li>
+        <li><i class="led blink-150" style="--c: #ffc800" aria-hidden="true"></i>
+          <span><b>Yellow, flashing fast</b>: starting up.</span>
+          <span class="legend-do">Wait a few seconds.</span></li>
+        <li><i class="led" style="--c: #0f0" aria-hidden="true"></i>
+          <span><b>Green</b>: plugged into a computer and ready.</span>
+          <span class="legend-do">Press the trigger to type the key.</span></li>
+        <li><i class="led blink-500" style="--c: #0f0" aria-hidden="true"></i>
+          <span><b>Green, blinking</b>: its computer is asleep or was unplugged from the hub.</span>
+          <span class="legend-do">Wake the computer or reconnect the hub. Presses aren’t typed until it’s back.</span></li>
+        <li><i class="led" style="--c: #00f" aria-hidden="true"></i>
+          <span><b>Blue</b>: not on a computer, connected wirelessly to a button that is.</span>
+          <span class="legend-do">Nothing to do: presses are typed on that button’s computer.</span></li>
+        <li><i class="led blink-500" style="--c: #00f" aria-hidden="true"></i>
+          <span><b>Blue, blinking</b>: not on a computer, looking for a button that is.</span>
+          <span class="legend-do">Plug another button into a computer nearby, or plug this one in.</span></li>
+        <li><i class="led press" style="--c: #fff" aria-hidden="true"></i>
+          <span><b>White on a press</b>: the press got through.</span>
+          <span class="legend-do">Nothing to do.</span></li>
+        <li><i class="led press" style="--c: #f00" aria-hidden="true"></i>
+          <span><b>Red on a press</b>: the press had nowhere to go.</span>
+          <span class="legend-do">See green or blue, blinking: the button is waiting for a computer.</span></li>
+        <li><i class="led blink-250" style="--c: #f00" aria-hidden="true"></i>
+          <span><b>Red, flashing</b>: the wireless link failed to start.</span>
+          <span class="legend-do">Unplug the button and plug it back in.</span></li>
+        <li><i class="led rainbow" style="--c: #a000ff" aria-hidden="true"></i>
+          <span><b>All colours, in turn</b>: settings mode.</span>
+          <span class="legend-do">Click <b>Connect</b> to change settings, or press <b>LEFT BUTTON</b> to go back to normal use.</span></li>
+      </ul>
     </section>
   </div>
 
@@ -402,8 +470,8 @@ function setStatus(text, isError = false) {
 }
 
 function showConnected(connected) {
-  $('connectPanel').hidden = connected;
-  $('keyStepPanel').hidden = connected;   // in settings mode BOOT leaves settings mode
+  // The how-tos and light legend are for normal use (in settings mode BOOT leaves it)
+  $('intro').hidden = connected;
   form.hidden = !connected;
   $('keycap').hidden = !connected;
   $('boardLed').classList.toggle('rainbow', connected);
