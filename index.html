@@ -81,9 +81,10 @@
   ol.steps { margin: 6px 0 16px; padding-left: 20px; }
   ol.steps li { margin: 4px 0; }
 
-  /* How-to animation: the board acting out step 2 (holding BOOT) */
+  /* How-to animations: the board acting out a panel's steps (howto.js) */
   .howto {
     position: relative; margin: 12px 0 14px; aspect-ratio: 16 / 9; overflow: hidden;
+    container-type: inline-size;
     border: 1px solid var(--rule); border-radius: 10px;
     background: radial-gradient(ellipse at 50% 45%, #fff 0%, var(--bg) 100%);
   }
@@ -94,6 +95,14 @@
     filter: drop-shadow(0 1px 2px rgb(28 35 48 / .3));
   }
   .howto-hand-fill { fill: #fff; stroke: none; }
+  /* The button's key, beside the board, like the header's keycap */
+  .howto-key {
+    position: absolute; right: 13%; top: 50%; transform: translateY(-50%);
+    display: grid; place-items: center; width: 11cqw; aspect-ratio: 1;
+    background: #fff; border: 1px solid var(--rule); border-bottom-width: 4px; border-radius: 9px;
+    font: 600 5.5cqw var(--mono); color: var(--ink); transition: border-color .15s, box-shadow .15s;
+  }
+  .howto-key.lit { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 
   fieldset { border: 0; margin: 0; padding: 14px 0 0; min-width: 0; }
   fieldset + fieldset { border-top: 1px solid var(--rule); margin-top: 16px; }
@@ -219,21 +228,25 @@
     </div>
   </header>
 
+  <!-- The hand in each how-to animation, added by howto.js.
+       @license lucide-static v1.61.0 - ISC (vendor/lucide/LICENSE): the "pointer" icon,
+       with a white fill traced along its outline -->
+  <template id="howtoHand">
+    <svg class="howto-hand" viewBox="0 0 24 24" aria-hidden="true">
+      <path class="howto-hand-fill" d="M6 14V4a2 2 0 0 1 4 0v5a2 2 0 0 1 4 0v1a2 2 0 0 1 4 0v1a2 2 0 0 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15Z"/>
+      <path d="M22 14a8 8 0 0 1-8 8"/>
+      <path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/>
+      <path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1"/>
+      <path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10"/>
+      <path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+    </svg>
+  </template>
+
   <section class="panel" id="connectPanel">
     <h2>Connect</h2>
     <figure class="howto" id="howto" hidden
             role="img" aria-label="Animation: hold BOOT for 3 seconds; the button restarts and its light cycles through all colours.">
       <canvas aria-hidden="true"></canvas>
-      <!-- @license lucide-static v1.61.0 - ISC (vendor/lucide/LICENSE): the "pointer" icon,
-           with a white fill traced along its outline -->
-      <svg class="howto-hand" viewBox="0 0 24 24" aria-hidden="true">
-        <path class="howto-hand-fill" d="M6 14V4a2 2 0 0 1 4 0v5a2 2 0 0 1 4 0v1a2 2 0 0 1 4 0v1a2 2 0 0 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15Z"/>
-        <path d="M22 14a8 8 0 0 1-8 8"/>
-        <path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/>
-        <path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1"/>
-        <path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10"/>
-        <path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
-      </svg>
     </figure>
     <ol class="steps">
       <li>Plug the button into this computer.</li>
@@ -241,6 +254,20 @@
       <li>Click <b>Connect</b> and choose <b>USB Button</b>. It’s listed with the button’s key and ID, e.g. “USB Button [2] (EB:F4:58)”.</li>
     </ol>
     <button class="primary" id="connectBtn">Connect</button>
+  </section>
+
+  <section class="panel" id="keyStepPanel">
+    <h2>Change the key</h2>
+    <figure class="howto" id="howtoKey" hidden
+            role="img" aria-label="Animation: press and release BOOT; the light flashes white and the button switches to the next key.">
+      <canvas aria-hidden="true"></canvas>
+      <span class="howto-key" aria-hidden="true"></span>
+    </figure>
+    <ol class="steps">
+      <li>Press <b>BOOT</b> and let go.</li>
+      <li>The button switches to the next key and types it, so you can see which key it is now. Keys go a to z, then 0 to 9.</li>
+    </ol>
+    <p>Let go within 3 seconds: holding <b>BOOT</b> longer restarts the button for this page instead.</p>
   </section>
 
   <section class="panel" id="unsupportedPanel" hidden>
@@ -366,6 +393,7 @@ function setStatus(text, isError = false) {
 
 function showConnected(connected) {
   $('connectPanel').hidden = connected;
+  $('keyStepPanel').hidden = connected;   // in settings mode BOOT leaves settings mode
   form.hidden = !connected;
   $('keycap').hidden = !connected;
   $('boardLed').classList.toggle('rainbow', connected);
@@ -647,8 +675,8 @@ if (!('serial' in navigator)) {
   // restarts into settings mode while the page is open.
   navigator.serial.addEventListener('connect', e => connect(e.target, true));
   navigator.serial.getPorts().then(ports => { if (ports.length) connect(ports[0], true); });
-  // The animation of holding BOOT (three.js, fetched only where it's shown)
-  import('./howto.js').catch(err => console.warn('Settings-mode animation unavailable:', err));
+  // The animations of BOOT (three.js, fetched only where Web Serial is)
+  import('./howto.js').catch(err => console.warn('How-to animations unavailable:', err));
 }
 </script>
 </body>

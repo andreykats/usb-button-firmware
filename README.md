@@ -36,6 +36,10 @@ In a browser without Web Serial the page says so instead of showing the settings
 4. Change settings; each is saved on the button straight away.
 5. Click **Disconnect**, or press BOOT or RESET, to go back to normal use.
 
+The key can also be changed without the page: in normal use, press and release **BOOT**.
+The button switches to the next key (a to z, then 0 to 9), types it and flashes white.
+The page shows this too, next to the steps for connecting.
+
 ## Files
 
 | File | What it is |
