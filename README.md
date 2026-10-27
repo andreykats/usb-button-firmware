@@ -1,6 +1,6 @@
 # USB Button (Advanced Type)
 
-<img src="resources/arcade-button-scene-horizontal.png" width="423" alt="The USB Button: a Waveshare ESP32-S3-Zero wired to a red arcade button">
+![The USB Button: a Waveshare ESP32-S3-Zero wired to a red arcade button](resources/arcade-button-scene-horizontal.png)
 
 A one-key USB keyboard. Plug it into a computer, press the trigger button, and the
 computer receives the selected key as if it were typed on a keyboard.
