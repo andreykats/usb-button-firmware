@@ -226,8 +226,8 @@
   <header>
     <div class="board-led" id="boardLed" aria-hidden="true"></div>
     <div>
-      <h1>USB Button settings</h1>
-      <p class="status" id="status" role="status">Not connected</p>
+      <h1>USB Button Guide</h1>
+      <p class="status" id="status" role="status">Button not connected</p>
     </div>
     <div class="keycap" id="keycap" hidden>
       <span class="keycap-label">Key</span>
@@ -251,7 +251,7 @@
 
   <div class="intro">
     <section class="panel" id="keyStepPanel">
-      <h2>Change the key</h2>
+      <h2>Quick change key</h2>
       <figure class="howto" id="howtoKey" hidden
               role="img" aria-label="Animation: press and release LEFT BUTTON; the light flashes white and the button switches to the next key.">
         <canvas aria-hidden="true"></canvas>
@@ -259,21 +259,22 @@
       </figure>
       <ol class="steps">
         <li>Press <b>LEFT BUTTON</b> and let go.</li>
-        <li>The button switches to the next key and types it, so you can see which key it is now. Keys go a to z, then 0 to 9.</li>
+        
       </ol>
-      <p>Let go within 3 seconds: holding <b>LEFT BUTTON</b> longer restarts the button for this page instead.</p>
+      <!-- <p>Let go within 3 seconds: holding <b>LEFT BUTTON</b> longer restarts the button for this page instead.</p> -->
+      <p>The button switches to the next key and types it. Keys go from (a - z), then (0 - 9).</p>
     </section>
 
     <section class="panel" id="connectPanel">
-      <h2>Connect</h2>
+      <h2>Advanced settings</h2>
       <figure class="howto" id="howto" hidden
               role="img" aria-label="Animation: hold LEFT BUTTON for 3 seconds; the button restarts and its light cycles through all colours.">
         <canvas aria-hidden="true"></canvas>
       </figure>
       <ol class="steps">
-        <li>Plug the USB Button into this computer.</li>
+        <li>Plug the USB button into this computer.</li>
         <li>Hold <b>LEFT BUTTON</b> for 3 seconds. The button restarts and its light cycles through all colours.</li>
-        <li>Click <b>Connect</b> and choose <b>USB Button</b>. It’s listed with the button’s key and ID, e.g. “USB Button [2] (EB:F4:58)”.</li>
+        <li>Click <b>Connect</b> and choose <b>USB Button</b>. Should look something like this: “USB Button [2] (EB:F4:58)”.</li>
       </ol>
       <button class="primary" id="connectBtn">Connect</button>
     </section>
