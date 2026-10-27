@@ -79,7 +79,7 @@
   }
   .panel > p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
 
-  /* Before connecting: Connect and Change the key side by side where there's room,
+  /* Before connecting: Change the key and Connect side by side where there's room,
      the page widening for them; stacked otherwise */
   @media (min-width: 900px) {
     main:has(.intro > .panel:not([hidden])) { max-width: 1000px; }
@@ -250,6 +250,20 @@
   </template>
 
   <div class="intro">
+    <section class="panel" id="keyStepPanel">
+      <h2>Change the key</h2>
+      <figure class="howto" id="howtoKey" hidden
+              role="img" aria-label="Animation: press and release BOOT; the light flashes white and the button switches to the next key.">
+        <canvas aria-hidden="true"></canvas>
+        <span class="howto-key" aria-hidden="true"></span>
+      </figure>
+      <ol class="steps">
+        <li>Press <b>BOOT</b> and let go.</li>
+        <li>The button switches to the next key and types it, so you can see which key it is now. Keys go a to z, then 0 to 9.</li>
+      </ol>
+      <p>Let go within 3 seconds: holding <b>BOOT</b> longer restarts the button for this page instead.</p>
+    </section>
+
     <section class="panel" id="connectPanel">
       <h2>Connect</h2>
       <figure class="howto" id="howto" hidden
@@ -267,20 +281,6 @@
     <section class="panel" id="unsupportedPanel" hidden>
       <h2>Browser not supported</h2>
       <p>This page talks to the button over Web Serial. Use Chrome, Edge, Opera or Firefox (151 or later) on a computer; Safari doesn’t support it.</p>
-    </section>
-
-    <section class="panel" id="keyStepPanel">
-      <h2>Change the key</h2>
-      <figure class="howto" id="howtoKey" hidden
-              role="img" aria-label="Animation: press and release BOOT; the light flashes white and the button switches to the next key.">
-        <canvas aria-hidden="true"></canvas>
-        <span class="howto-key" aria-hidden="true"></span>
-      </figure>
-      <ol class="steps">
-        <li>Press <b>BOOT</b> and let go.</li>
-        <li>The button switches to the next key and types it, so you can see which key it is now. Keys go a to z, then 0 to 9.</li>
-      </ol>
-      <p>Let go within 3 seconds: holding <b>BOOT</b> longer restarts the button for this page instead.</p>
     </section>
   </div>
 
