@@ -88,15 +88,6 @@
     background: radial-gradient(ellipse at 50% 45%, #fff 0%, var(--bg) 100%);
   }
   .howto canvas { display: block; width: 100%; height: 100%; }
-  .howto-tag {
-    position: absolute; transform: translate(calc(-100% - 6px), -50%); pointer-events: none;
-    padding: 3px 7px; border-radius: 5px; background: var(--accent); color: #fff;
-    font: 600 11px var(--mono); letter-spacing: .08em;
-  }
-  .howto-caption {
-    position: absolute; left: 10px; bottom: 10px; margin: 0; padding: 4px 9px; border-radius: 6px;
-    background: rgb(247 249 250 / .88); font-size: 13px; font-weight: 600;
-  }
 
   fieldset { border: 0; margin: 0; padding: 14px 0 0; min-width: 0; }
   fieldset + fieldset { border-top: 1px solid var(--rule); margin-top: 16px; }
@@ -227,8 +218,6 @@
     <figure class="howto" id="howto" hidden
             role="img" aria-label="Animation: hold BOOT for 3 seconds; the button restarts and its light cycles through all colours.">
       <canvas aria-hidden="true"></canvas>
-      <span class="howto-tag" aria-hidden="true">BOOT</span>
-      <figcaption class="howto-caption" aria-hidden="true"></figcaption>
     </figure>
     <ol class="steps">
       <li>Plug the button into this computer.</li>

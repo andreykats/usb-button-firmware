@@ -71,9 +71,10 @@ added. For each new firmware setting (an entry in `SETTINGS[]` on `ws-esp32s3-ze
 
 ## Settings-mode animation
 
-The Connect panel shows Waveshare's ESP32-S3-Zero acting out step 2: BOOT held 3 s
-(a progress ring fills; the RGB LED stays green), the restart (LED off), then the
-settings-mode rainbow from purple. `howto.js` builds the scene with three.js around the
+The Connect panel shows Waveshare's ESP32-S3-Zero acting out step 2: a finger holds
+BOOT 3 s (a progress ring fills; the RGB LED stays green), the restart (LED off), then
+the settings-mode rainbow from purple. No text over it: the steps below say it. The
+finger is slimmer than life so it doesn't hide the LED. `howto.js` builds the scene with three.js around the
 GLB and drives it with the firmware's timings and its `colorWheel()`.
 
 - `index.html` imports `howto.js` with `import()` only when Web Serial is available, so

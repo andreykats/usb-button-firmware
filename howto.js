@@ -20,20 +20,20 @@ const T_SETTINGS = T_RESTART + RESTART_S;
 const T_RELEASE  = T_SETTINGS + 0.8;
 const T_END      = T_SETTINGS + 2 * RAINBOW_PERIOD_S;
 const T_STILL    = T_PRESS + 2.5;          // the frame shown with reduced motion
-const PRESS_S    = 0.35;                   // pointer moving onto / off BOOT
+const PRESS_S    = 0.35;                   // finger moving onto / off BOOT
 
 // Scene sizes, in mm like the model
 const PLUNGER_TRAVEL = 0.25;
-const POINTER_REST   = 3.2;                // pointer tip height above the plunger
 const USB_C_CENTRE_Y = 1.6;                // receptacle shell centre above the PCB
-// The pointer comes in from the left, clear of the plug, leaning enough to show its length
-const POINTER_AXIS = new THREE.Vector3(-1, 0.75, 0.1).normalize();
-const POINTER_LENGTH = 9;                  // cone + shaft: the BOOT tag sits at its tail
+// The finger comes in from the left, tip to hand along FINGER_AXIS. It's slimmer than
+// life so its tip stops short of the LED; it touches BOOT left of the plunger's centre.
+const FINGER_AXIS   = new THREE.Vector3(-1, 0.3, 0.1).normalize();
+const FINGER_RADIUS = 2.5;
+const FINGER_LIFT   = 5;                   // how far it backs off BOOT, along its axis
+const FINGER_TOUCH_X = -0.5;               // contact point, from the plunger's centre
 const ACCENT = 0x3B3FD6;                   // --accent
 
 const figure = document.getElementById('howto');
-const captionEl = figure.querySelector('figcaption');
-const tagEl = figure.querySelector('.howto-tag');
 
 // The firmware's colorWheel(): pos 0..1535, six 256-step ramps
 function colorWheel(pos) {
@@ -57,17 +57,10 @@ function ledColour(t) {
   return colorWheel((RAINBOW_START_POS + Math.floor(elapsed / RAINBOW_PERIOD_S * 1536)) % 1536);
 }
 
-function caption(t) {
-  if (t < T_PRESS) return 'Plugged in: the light is green';
-  if (t < T_RESTART) return `Hold BOOT · ${Math.floor(t - T_PRESS) + 1} s`;
-  if (t < T_SETTINGS) return 'The button restarts…';
-  return 'Settings mode: the light cycles through colours';
-}
-
 const clamp01 = x => Math.min(Math.max(x, 0), 1);
 const ease = x => x * x * (3 - 2 * x);
 
-// 0 = pointer up, 1 = BOOT fully down
+// 0 = finger off BOOT, 1 = BOOT fully down
 function pressAmount(t) {
   if (t < T_PRESS) return ease(clamp01((t - (T_PRESS - PRESS_S)) / PRESS_S));
   return 1 - ease(clamp01((t - T_RELEASE) / PRESS_S));
@@ -113,17 +106,28 @@ function makeCable(mouthZ) {
   return cable;
 }
 
-// A pointer that presses BOOT: its tip is the group's origin
-function makePointer() {
-  const pointer = new THREE.Group();
-  const material = new THREE.MeshStandardMaterial({ color: ACCENT, roughness: 0.4 });
-  const head = new THREE.Mesh(new THREE.ConeGeometry(1.4, 3, 32), material);
-  head.rotation.x = Math.PI;
-  head.position.y = 1.5;
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 6, 24), material);
-  shaft.position.y = 3 + 3;
-  pointer.add(head, shaft);
-  return pointer;
+// A finger that presses BOOT. Its origin is the centre of the rounded tip; local +Y
+// runs along FINGER_AXIS towards the hand and local +Z is the nail side, turned up.
+function makeFinger() {
+  const LENGTH = 60;
+  const r = FINGER_RADIUS;
+  const finger = new THREE.Group();
+  const skin = new THREE.Mesh(new THREE.CapsuleGeometry(r, LENGTH, 12, 32),
+    new THREE.MeshStandardMaterial({ color: 0xdba184, roughness: 0.6 }));
+  skin.position.y = LENGTH / 2;
+  const nail = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16),
+    new THREE.MeshStandardMaterial({ color: 0xeebcaa, roughness: 0.3 }));
+  nail.scale.set(0.55 * r, 0.8 * r, 0.1 * r);
+  nail.position.set(0, 0.6 * r, r - 0.05);
+  finger.add(skin, nail);
+
+  const along = FINGER_AXIS.clone();
+  const up = new THREE.Vector3(0, 1, 0);
+  const nailSide = up.addScaledVector(along, -up.dot(along)).normalize();
+  const side = new THREE.Vector3().crossVectors(along, nailSide);
+  finger.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, along, nailSide));
+  finger.traverse(o => { o.castShadow = true; });
+  return finger;
 }
 
 // A ring around BOOT that fills over SETTINGS_HOLD_S, clockwise from the top
@@ -149,13 +153,20 @@ async function startHowto() {
   const canvas = figure.querySelector('canvas');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.8;
+  // From the top right, so the finger's shadow falls away from the LED
   const sun = new THREE.DirectionalLight(0xffffff, 1.8);
-  sun.position.set(-20, 40, 25);
+  sun.position.set(18, 45, -12);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -24, right: 24, top: 24, bottom: -24, near: 1, far: 120 });
+  sun.shadow.normalBias = 0.03;
   scene.add(sun);
 
   // Face on from straight above, USB-C at the top like Waveshare's pinout drawing
@@ -163,10 +174,10 @@ async function startHowto() {
   camera.up.set(0, 0, -1);
   camera.position.set(0, 78, -1);
   camera.lookAt(0, 0, -1);
-  camera.updateMatrixWorld();   // pose() projects the tag before the first render
 
   const gltf = await new GLTFLoader().loadAsync('models/esp32-s3-zero.glb');
   const board = gltf.scene;
+  board.traverse(o => { o.castShadow = o.receiveShadow = true; });
   scene.add(board);
   const boot = board.getObjectByName('boot');
   const led = board.getObjectByName('led');
@@ -195,24 +206,26 @@ async function startHowto() {
   ledLight.position.set(ledCentre.x, ledBox.max.y + 1.5, ledCentre.z);
   scene.add(glow, ledLight);
 
-  scene.add(makeCable(boardBox.min.z));
-  const pointer = makePointer();
-  pointer.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), POINTER_AXIS);
+  const cable = makeCable(boardBox.min.z);
+  cable.traverse(o => { o.castShadow = true; });
+  scene.add(cable);
+  const finger = makeFinger();
+  // Where the tip's centre is when it just touches the plunger
+  const touch = new THREE.Vector3(bootCentre.x + FINGER_TOUCH_X, plungerTop + FINGER_RADIUS, bootCentre.z);
   const ring = makeProgressRing();
   ring.position.set(bootCentre.x, 0.02, bootCentre.z);
-  scene.add(pointer, ring);
+  scene.add(finger, ring);
 
   const colour = new THREE.Color();
   const bootRestY = boot.position.y;
-  const tagAnchor = new THREE.Vector3();
-  let shownCaption = '';
 
   function pose(t) {
     const press = pressAmount(t);
     const bob = 0.3 * Math.sin(2 * Math.PI * 6 * t / T_END) * (1 - press);
-    // Distance of the tip from the plunger's top, along the pointer
-    const gap = POINTER_REST + bob - press * (POINTER_REST + PLUNGER_TRAVEL);
-    pointer.position.copy(bootCentre).setY(plungerTop).addScaledVector(POINTER_AXIS, gap);
+    // Backs off along its own axis, presses straight down; BOOT moves once touched
+    finger.position.copy(touch).addScaledVector(FINGER_AXIS, (FINGER_LIFT + bob) * (1 - press));
+    finger.position.y -= PLUNGER_TRAVEL * press;
+    const gap = finger.position.y - touch.y;
     boot.position.y = bootRestY + Math.max(-PLUNGER_TRAVEL, Math.min(0, gap));
 
     ring.visible = t >= T_PRESS - PRESS_S && t < T_RELEASE;
@@ -226,14 +239,6 @@ async function startHowto() {
     glow.material.color.copy(colour);
     ledLight.color.copy(colour);
     ledLight.intensity = rgb ? 20 : 0;
-
-    const text = caption(t);
-    if (text !== shownCaption) captionEl.textContent = shownCaption = text;
-
-    // The BOOT tag rides on the pointer's tail
-    tagAnchor.copy(pointer.position).addScaledVector(POINTER_AXIS, POINTER_LENGTH).project(camera);
-    tagEl.style.left = `${(tagAnchor.x + 1) / 2 * 100}%`;
-    tagEl.style.top = `${(1 - tagAnchor.y) / 2 * 100}%`;
   }
 
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
