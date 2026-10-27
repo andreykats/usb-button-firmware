@@ -78,7 +78,9 @@ const WIRE_PITCH = 1.6;                    // side by side where they enter the 
 const BUNDLE_RADIUS = 0.75;                // wire centres from the bundle's axis
 const BUNDLE_TWISTS = 5;                   // turns along its length
 const FLATTEN_MM = 4;                      // twisted → side by side, either side of the connector
-const WIRE_Y = BOARD_BOTTOM - 0.9;         // runs under the board and the button
+// Low enough that no twisted wire rises above the surface the board and button sit
+// on: the button's bezel thins to nothing at its edge
+const WIRE_Y = BOARD_BOTTOM - (BUNDLE_RADIUS + WIRE_RADIUS) - 0.1;
 // The bundle's axis: straight down from under the board to under the button
 const BUNDLE_PATH = new THREE.LineCurve3(
   new THREE.Vector3(0, WIRE_Y, 4), new THREE.Vector3(0, WIRE_Y, BUTTON_CENTRE.z));
