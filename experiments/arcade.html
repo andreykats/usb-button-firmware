@@ -62,7 +62,8 @@ const PLUNGER_SIDE_PROFILE = [
   [11, 3.2], [11.6, 2.9], [12.0, 2.4], [12.1, 1.6], [12.1, 0.4], [10.5, 0.4],
 ];
 const GAP = [12.1, 12.6, 1.8];             // dark ring between plunger and bezel: r0, r1, height
-const RED = 0xc80c16;
+const RED = 0xc80c16;                      // plunger
+const RIM = 0x17181b;                      // bezel: black
 const BEZEL_RADIUS = Math.max(...BEZEL_PROFILE.map(([r]) => r)) * BUTTON_SCALE;
 const BUTTON_CENTRE = new THREE.Vector3(0, BOARD_BOTTOM, BOARD_EDGE_Z + WIRE_LENGTH + BEZEL_RADIUS);
 
@@ -109,7 +110,8 @@ function makeArcadeButton() {
     new THREE.MeshBasicMaterial({ color: 0x1a0b0c }));
   gap.rotation.x = -Math.PI / 2;
   gap.position.y = GAP[2];
-  button.add(lathe(BEZEL_PROFILE, plastic), plunger, gap);
+  const rim = new THREE.MeshStandardMaterial({ color: RIM, roughness: 0.4, envMapIntensity: 0.6 });
+  button.add(lathe(BEZEL_PROFILE, rim), plunger, gap);
   return button;
 }
 
