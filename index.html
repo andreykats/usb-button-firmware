@@ -79,19 +79,20 @@
   }
   .panel > p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
 
-  /* Before connecting: Change the key and Connect side by side where there's room,
-     the page widening for them, with the light legend across both; stacked otherwise */
+  /* Before connecting: Change the key, Connect and the light legend as equal cells,
+     the page widening for them: three across where there's room, then two, then stacked */
   @media (min-width: 900px) {
     main:has(.intro:not([hidden])) { max-width: 1000px; }
     .intro { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }
-    .intro > .wide { grid-column: 1 / -1; }
+  }
+  @media (min-width: 1300px) {
+    main:has(.intro:not([hidden])) { max-width: 1440px; }
+    .intro { grid-template-columns: repeat(3, 1fr); }
   }
 
   /* Status light legend: the firmware's colours and blink rates */
-  .legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px 28px; }
-  @media (min-width: 640px) { .legend { grid-template-columns: 1fr 1fr; } }
-  .legend li { display: grid; grid-template-columns: 16px 1fr; align-content: start; gap: 0 12px; font-size: 14px; }
-  .legend-do { grid-column: 2; color: var(--muted); font-size: 13px; }
+  .legend { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 12px; }
+  .legend li { display: grid; grid-template-columns: 16px 1fr; gap: 12px; font-size: 14px; }
   .led {
     width: 16px; height: 16px; margin-top: 2px; border-radius: 50%;
     background: var(--housing); color: var(--c);
@@ -100,7 +101,6 @@
     content: ""; display: block; width: 100%; height: 100%; border-radius: 50%;
     background: currentColor; box-shadow: 0 0 7px 1px currentColor, inset 0 0 0 1px rgb(0 0 0 / .2);
   }
-  .led.off::after       { display: none; }
   .led.blink-150::after { animation: blink .3s steps(1) infinite; }   /* booting: 150 ms on, 150 off */
   .led.blink-250::after { animation: blink .5s steps(1) infinite; }   /* error: blinkEvery(250) */
   .led.blink-500::after { animation: blink 1s steps(1) infinite; }    /* blinkEvery(500) */
@@ -315,40 +315,17 @@
     </section>
 
     <!-- The firmware's RGB status LED states (default build, no WiFi), with its colours -->
-    <section class="panel wide" id="lightPanel">
+    <section class="panel" id="lightPanel">
       <h2>What the light means</h2>
-      <p>The colour light on the board. On a Matrix button, the key on its display lights up in these colours.</p>
       <ul class="legend">
-        <li><i class="led off" aria-hidden="true"></i>
-          <span><b>Off</b>: no power.</span>
-          <span class="legend-do">Check the cable, and that the computer or charger is on.</span></li>
-        <li><i class="led blink-150" style="--c: #ffc800" aria-hidden="true"></i>
-          <span><b>Yellow, flashing fast</b>: starting up.</span>
-          <span class="legend-do">Wait a few seconds.</span></li>
-        <li><i class="led" style="--c: #0f0" aria-hidden="true"></i>
-          <span><b>Green</b>: plugged into a computer and ready.</span>
-          <span class="legend-do">Press the trigger to type the key.</span></li>
-        <li><i class="led blink-500" style="--c: #0f0" aria-hidden="true"></i>
-          <span><b>Green, blinking</b>: its computer is asleep or was unplugged from the hub.</span>
-          <span class="legend-do">Wake the computer or reconnect the hub. Presses aren’t typed until it’s back.</span></li>
-        <li><i class="led" style="--c: #00f" aria-hidden="true"></i>
-          <span><b>Blue</b>: not on a computer, connected wirelessly to a button that is.</span>
-          <span class="legend-do">Nothing to do: presses are typed on that button’s computer.</span></li>
-        <li><i class="led blink-500" style="--c: #00f" aria-hidden="true"></i>
-          <span><b>Blue, blinking</b>: not on a computer, looking for a button that is.</span>
-          <span class="legend-do">Plug another button into a computer nearby, or plug this one in.</span></li>
-        <li><i class="led press" style="--c: #fff" aria-hidden="true"></i>
-          <span><b>White on a press</b>: the press got through.</span>
-          <span class="legend-do">Nothing to do.</span></li>
-        <li><i class="led press" style="--c: #f00" aria-hidden="true"></i>
-          <span><b>Red on a press</b>: the press had nowhere to go.</span>
-          <span class="legend-do">See green or blue, blinking: the button is waiting for a computer.</span></li>
-        <li><i class="led blink-250" style="--c: #f00" aria-hidden="true"></i>
-          <span><b>Red, flashing</b>: the wireless link failed to start.</span>
-          <span class="legend-do">Unplug the button and plug it back in.</span></li>
-        <li><i class="led rainbow" style="--c: #a000ff" aria-hidden="true"></i>
-          <span><b>All colours, in turn</b>: settings mode.</span>
-          <span class="legend-do">Click <b>Connect</b> to change settings, or press <b>LEFT BUTTON</b> to go back to normal use.</span></li>
+        <li><i class="led blink-150" style="--c: #ffc800" aria-hidden="true"></i><span><b>Yellow, flashing fast</b>: starting up.</span></li>
+        <li><i class="led" style="--c: #0f0" aria-hidden="true"></i><span><b>Green</b>: plugged into a computer and ready.</span></li>
+        <li><i class="led blink-500" style="--c: #0f0" aria-hidden="true"></i><span><b>Green, blinking</b>: its computer is asleep or was unplugged from the hub.</span></li>
+        <li><i class="led" style="--c: #00f" aria-hidden="true"></i><span><b>Blue</b>: not on a computer, connected wirelessly to a button that is.</span></li>
+        <li><i class="led blink-500" style="--c: #00f" aria-hidden="true"></i><span><b>Blue, blinking</b>: not on a computer, looking for a button that is.</span></li>
+        <li><i class="led press" style="--c: #f00" aria-hidden="true"></i><span><b>Red on a press</b>: the press had nowhere to go.</span></li>
+        <li><i class="led blink-250" style="--c: #f00" aria-hidden="true"></i><span><b>Red, flashing</b>: the wireless link failed to start.</span></li>
+        <li><i class="led rainbow" style="--c: #a000ff" aria-hidden="true"></i><span><b>All colours, in turn</b>: settings mode.</span></li>
       </ul>
     </section>
   </div>
