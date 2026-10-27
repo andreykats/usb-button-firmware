@@ -80,9 +80,9 @@ GLB and drives it with the firmware's timings and its `colorWheel()`.
   other browsers never fetch three.js (~460 KB gzipped). The `<script type="importmap">`
   maps `three` and `three/addons/` to `vendor/three/`.
 - The figure stays hidden until the first frame renders; if WebGL or a file fails, the
-  written steps stand alone. It renders only while on screen and playing. It plays by
-  itself for longer than 5 s, so it needs its Pause button (WCAG 2.2.2);
-  `prefers-reduced-motion` starts it paused on the hold.
+  written steps stand alone. It renders only while on screen. No pause button (the
+  user's choice); with `prefers-reduced-motion` it shows a still frame of the hold.
+- Face-on view from straight above, USB-C at the top, like Waveshare's pinout drawing.
 - Keep its timings in sync with the firmware: `SETTINGS_HOLD_MS`, `RAINBOW_PERIOD_MS`,
   `RAINBOW_START_POS`, `colorWheel()` and `COLOR_GREEN` (normal state when plugged in).
 - The GLB's `boot` (BOOT plunger) and `led` (WS2812B) nodes are the animated parts;

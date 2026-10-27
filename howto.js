@@ -26,15 +26,14 @@ const PRESS_S    = 0.35;                   // pointer moving onto / off BOOT
 const PLUNGER_TRAVEL = 0.25;
 const POINTER_REST   = 3.2;                // pointer tip height above the plunger
 const USB_C_CENTRE_Y = 1.6;                // receptacle shell centre above the PCB
-// The pointer comes in from the left, across the view and clear of the plug
-const POINTER_AXIS = new THREE.Vector3(-1, 1.1, 0.25).normalize();
+// The pointer comes in from the left, clear of the plug, leaning enough to show its length
+const POINTER_AXIS = new THREE.Vector3(-1, 0.75, 0.1).normalize();
 const POINTER_LENGTH = 9;                  // cone + shaft: the BOOT tag sits at its tail
 const ACCENT = 0x3B3FD6;                   // --accent
 
 const figure = document.getElementById('howto');
 const captionEl = figure.querySelector('figcaption');
 const tagEl = figure.querySelector('.howto-tag');
-const pauseBtn = figure.querySelector('button');
 
 // The firmware's colorWheel(): pos 0..1535, six 256-step ramps
 function colorWheel(pos) {
@@ -159,9 +158,11 @@ async function startHowto() {
   sun.position.set(-20, 40, 25);
   scene.add(sun);
 
+  // Face on from straight above, USB-C at the top like Waveshare's pinout drawing
   const camera = new THREE.PerspectiveCamera(25, 16 / 9, 1, 500);
-  camera.position.set(-16, 46, 50);
-  camera.lookAt(0, 0, 0.5);
+  camera.up.set(0, 0, -1);
+  camera.position.set(0, 78, -1);
+  camera.lookAt(0, 0, -1);
   camera.updateMatrixWorld();   // pose() projects the tag before the first render
 
   const gltf = await new GLTFLoader().loadAsync('models/esp32-s3-zero.glb');
@@ -237,7 +238,6 @@ async function startHowto() {
 
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   let t = reducedMotion.matches ? T_STILL : 0;
-  let playing = !reducedMotion.matches;
   let onScreen = false;
   let last = 0;
 
@@ -252,19 +252,16 @@ async function startHowto() {
     draw();
   }
 
-  // Runs only while it's visible and playing; otherwise one frame on changes
+  // Runs only while it's visible and motion is welcome; otherwise one frame on changes
   function updateLoop() {
-    const run = playing && onScreen && !document.hidden;
+    const run = !reducedMotion.matches && onScreen && !document.hidden;
     last = performance.now();
     renderer.setAnimationLoop(run ? frame : null);
     if (!run) draw();
-    pauseBtn.textContent = playing ? 'Pause' : 'Play';
   }
 
-  pauseBtn.addEventListener('click', () => { playing = !playing; updateLoop(); });
   reducedMotion.addEventListener('change', () => {
-    playing = !reducedMotion.matches;
-    if (!playing) t = T_STILL;
+    if (reducedMotion.matches) t = T_STILL;
     updateLoop();
   });
   document.addEventListener('visibilitychange', updateLoop);
