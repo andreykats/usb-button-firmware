@@ -16,6 +16,7 @@ vendor/three/ ← three.js 0.186.1, unmodified: only the files howto.js imports 
 vendor/lucide/LICENSE ← for the hand icon inlined in index.html (published)
 tools/step_to_glb.py ← Waveshare STEP model → models/esp32-s3-zero.glb (local only)
 experiments/  ← scenes being tried out for other pages (local only, not published)
+resources/    ← arcade button scene: saved copy of experiments/arcade.html and its renders (local only)
 debug.html    ← debugger for the firmware's normal-mode WEB_SERIAL_ENABLED=1 protocol (local only)
 serve.py      ← localhost server; python3 -I serve.py opens Chrome at http://127.0.0.1:8080
 .github/workflows/pages.yml ← publishes index.html, howto.js, models/, vendor/ to GitHub Pages
